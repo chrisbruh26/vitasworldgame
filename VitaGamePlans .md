@@ -33,3 +33,9 @@ TOP PRIORITIES:
 
 
 # need templates for NPCs using json so that I can create several similar NPCs, like multiple squirrels
+
+Vita "naturally synthesizes items of a high-market value" meaning she can sell her poop depending on what she eats. She can also use her poop as fertilizer for plants.
+
+
+next steps:
+* change game setup to be a grid coordinate system where players move across the grid within a given area. They should be able to move from one side of the park to the other, for example, with their x and y coordinates changing.
