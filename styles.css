@@ -1,0 +1,250 @@
+/* Main Styles for Vita Game */
+:root {
+    --primary-color: #8a2be2;
+    --secondary-color: #ff69b4;
+    --background-color: #f8f9fa;
+    --text-color: #333;
+    --output-bg: #222;
+    --output-text: #f0f0f0;
+    --button-hover: #6a1cb1;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--background-color);
+    padding: 20px;
+}
+
+.game-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+header {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    padding: 20px;
+    text-align: center;
+}
+
+header h1 {
+    margin-bottom: 5px;
+    font-size: 2.5rem;
+}
+
+.game-interface {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    gap: 20px;
+    padding: 20px;
+}
+
+@media (min-width: 992px) {
+    .game-interface {
+        grid-template-columns: 3fr 1fr;
+        grid-template-rows: auto auto;
+    }
+    
+    .game-output-container {
+        grid-column: 1;
+        grid-row: 1;
+    }
+    
+    .game-input-container {
+        grid-column: 1;
+        grid-row: 2;
+    }
+    
+    .game-buttons {
+        grid-column: 2;
+        grid-row: span 2;
+    }
+}
+
+.game-output-container {
+    width: 100%;
+}
+
+.game-output {
+    height: 400px;
+    padding: 15px;
+    background-color: var(--output-bg);
+    color: var(--output-text);
+    border-radius: 5px;
+    font-family: 'Courier New', Courier, monospace;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+.game-input-container {
+    display: flex;
+    gap: 10px;
+}
+
+#game-input {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+}
+
+#submit-command {
+    padding: 10px 20px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+#submit-command:hover {
+    background-color: var(--button-hover);
+}
+
+.game-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.button-group {
+    background-color: #f0f0f0;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.button-group h3 {
+    margin-bottom: 10px;
+    color: var(--primary-color);
+    text-align: center;
+}
+
+.action-btn {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 8px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.action-btn:hover {
+    background-color: var(--button-hover);
+}
+
+.movement-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.move-btn {
+    padding: 10px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.move-btn:hover {
+    background-color: var(--button-hover);
+}
+
+.move-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.vertical-movement {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.vertical-movement .move-btn {
+    flex: 1;
+}
+
+.game-help {
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-top: 1px solid #eee;
+}
+
+.game-help h3 {
+    margin-bottom: 10px;
+    color: var(--primary-color);
+}
+
+.game-help ul {
+    list-style-type: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 10px;
+}
+
+.game-help li {
+    padding: 5px 0;
+}
+
+code {
+    background-color: #eee;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+/* Message styling */
+.system-message {
+    color: #aaa;
+    font-style: italic;
+}
+
+.player-command {
+    color: var(--secondary-color);
+    font-weight: bold;
+}
+
+.error-message {
+    color: #ff6b6b;
+}
+
+.success-message {
+    color: #51cf66;
+}
+
+.important-message {
+    color: #fcc419;
+    font-weight: bold;
+}
+
+/* Animation for text appearing */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.new-message {
+    animation: fadeIn 0.3s ease-in-out;
+}
