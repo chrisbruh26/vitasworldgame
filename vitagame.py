@@ -654,7 +654,9 @@ class NPC:
         self.coordinates = coordinates if coordinates else Coordinates(0, 0, 0)
         self.location = None
         self.dialogue = dialogue if dialogue else {"default": "Hello there!"}
-        self.quest = None
+        self.quest = None  # Legacy single quest support
+        self.quests = []   # New multi-quest support
+        self.inventory = []  # NPC's inventory
 
     def set_location(self, area):
         """Set the location of the NPC."""
@@ -673,7 +675,41 @@ class NPC:
     
     def talk(self, player):
         """Talk to the NPC."""
-        if self.quest and self.quest.is_completed:
+        # First check for new quest system
+        active_quests = [q for q in self.quests if hasattr(q, 'active') and q.active and q.giver == self]
+        completed_quests = [q for q in self.quests if hasattr(q, 'completed') and q.completed and q.giver == self]
+        available_quests = [q for q in self.quests if not hasattr(q, 'active') or (not q.active and not q.completed) and q.giver == self]
+        
+        if active_quests and "quest_active" in self.dialogue:
+            print(f"{self.name}: {self.dialogue['quest_active']}")
+            for quest in active_quests:
+                print(f"Quest: {quest.name} - {quest.check_progress(player)}")
+                
+                # Check if the quest can be completed
+                if hasattr(quest, 'attempt_complete') and "ItemRequestQuest" in quest.__class__.__name__:
+                    quest.attempt_complete(player)
+                    if quest.completed and "quest_complete" in self.dialogue:
+                        print(f"{self.name}: {self.dialogue['quest_complete']}")
+        
+        elif completed_quests and "quest_complete" in self.dialogue:
+            print(f"{self.name}: {self.dialogue['quest_complete']}")
+        
+        elif available_quests:
+            if "quest_available" in self.dialogue:
+                print(f"{self.name}: {self.dialogue['quest_available']}")
+            else:
+                print(f"{self.name}: {self.dialogue['default']}")
+                
+            print(f"{self.name} has a quest for you:")
+            for i, quest in enumerate(available_quests):
+                print(f"{i+1}. {quest.name}: {quest.description}")
+                
+            # In a real game, you would handle quest acceptance here
+            # For now, we'll just print the options
+            print("(You can accept a quest by typing 'accept quest [number]')")
+        
+        # Fall back to legacy quest system
+        elif self.quest and self.quest.is_completed:
             if self.name == "Jeff":
                 print(f"{self.name} waves silently while quietly nibbling on an acorn.")
             else:
@@ -684,9 +720,39 @@ class NPC:
             print(f"{self.name}: {self.dialogue.get('default')}")
     
     def assign_quest(self, quest):
-        """Assign a quest to this NPC."""
+        """Assign a quest to this NPC (legacy method)."""
         self.quest = quest
         quest.giver = self
+        
+    def give_quest(self, player, quest_index=0):
+        """Give a quest to the player (new quest system)."""
+        if not self.quests or quest_index >= len(self.quests):
+            print(f"{self.name} doesn't have that quest to give.")
+            return
+            
+        quest = self.quests[quest_index]
+        if hasattr(quest, 'active') and quest.active:
+            print(f"You've already accepted the quest '{quest.name}'.")
+            print(quest.check_progress(player))
+            return
+            
+        if hasattr(quest, 'completed') and quest.completed:
+            print(f"You've already completed the quest '{quest.name}'.")
+            return
+            
+        quest.start(player)
+        
+    def add_to_inventory(self, item):
+        """Add an item to the NPC's inventory."""
+        self.inventory.append(item)
+        
+    def remove_from_inventory(self, item_name):
+        """Remove an item from the NPC's inventory."""
+        item = next((i for i in self.inventory if i.name.lower() == item_name.lower()), None)
+        if item:
+            self.inventory.remove(item)
+            return item
+        return None
 
 
 class Quest:
@@ -977,7 +1043,7 @@ def create_example_world():
     
     # Create objects and place them in the grid
     # Park objects
-    tree = GameObject("Tree", "A tall oak tree with branches perfect for climbing.")
+    tree = GameObject("Tree", "A tall oak tree. Home to Jeff and a few other squirrels.")
     park.place_object_at(tree, 3, 7)
     
     bench = GameObject("Bench", "A wooden bench to sit and relax.")
@@ -1010,11 +1076,7 @@ def create_example_world():
     squirrel = NPC("Jeff", "A bushy-tailed squirrel looking for acorns.", 
                   dialogue={"default": "Squeak! (He seems to be looking for acorns.)"})
     park.place_object_at(squirrel, 3, 6)
-    
-    receptionist = NPC("Sarah", "A friendly receptionist at the front desk.",
-                      dialogue={"default": "Welcome to the skyscraper! How can I help you today?"})
-    skyscraper_lobby.place_object_at(receptionist, 2, 1)
-    
+        
     return park, skyscraper_lobby, skyscraper_floor2, skyscraper_floor3
 
 
