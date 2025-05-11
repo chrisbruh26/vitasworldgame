@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vita Game - Bunny Adventure</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <header>
+            <h1>Vita Game</h1>
+            <p>A text-based adventure as a mischievous bunny</p>
+        </header>
+        
+        <div class="game-interface">
+            <div class="game-output-container">
+                <div id="game-output" class="game-output"></div>
+            </div>
+            
+            <div class="game-input-container">
+                <input type="text" id="game-input" placeholder="Enter your command...">
+                <button id="submit-command">Enter</button>
+            </div>
+            
+            <div class="game-buttons">
+                <div class="button-group">
+                    <h3>Quick Actions</h3>
+                    <button class="action-btn" data-command="look">Look Around</button>
+                    <button class="action-btn" data-command="inventory">Inventory</button>
+                    <button class="action-btn" data-command="status">Status</button>
+                </div>
+                
+                <div class="button-group">
+                    <h3>Movement</h3>
+                    <div class="movement-grid">
+                        <button class="move-btn" data-direction="northwest">↖</button>
+                        <button class="move-btn" data-direction="north">↑</button>
+                        <button class="move-btn" data-direction="northeast">↗</button>
+                        <button class="move-btn" data-direction="west">←</button>
+                        <button class="move-btn" data-direction="center" disabled>•</button>
+                        <button class="move-btn" data-direction="east">→</button>
+                        <button class="move-btn" data-direction="southwest">↙</button>
+                        <button class="move-btn" data-direction="south">↓</button>
+                        <button class="move-btn" data-direction="southeast">↘</button>
+                    </div>
+                    <div class="vertical-movement">
+                        <button class="move-btn" data-direction="up">Up</button>
+                        <button class="move-btn" data-direction="down">Down</button>
+                    </div>
+                </div>
+                
+                <div class="button-group">
+                    <h3>Jetpack</h3>
+                    <button class="action-btn" data-command="activate jetpack">Activate Jetpack</button>
+                    <button class="action-btn" data-command="deactivate jetpack">Deactivate Jetpack</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="game-help">
+            <h3>Commands:</h3>
+            <ul>
+                <li><code>go [direction]</code> - Move (north, south, east, west)</li>
+                <li><code>look</code> - Look around</li>
+                <li><code>pick up [item]</code> - Pick up an item</li>
+                <li><code>drop [item]</code> - Drop an item</li>
+                <li><code>inventory</code> or <code>inv</code> - Check your inventory</li>
+                <li><code>eat [item]</code> - Eat food</li>
+                <li><code>activate jetpack</code> - Start flying</li>
+                <li><code>deactivate jetpack</code> - Stop flying</li>
+                <li><code>fly [direction]</code> - Fly in a direction</li>
+                <li><code>talk to [npc]</code> - Talk to an NPC</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script src="game.js"></script>
+</body>
+</html>
