@@ -341,7 +341,12 @@ class NPC:
     
     def talk(self, player):
         """Talk to the NPC."""
-        if self.quest and self.quest.is_active and not self.quest.is_completed:
+        if self.quest and self.quest.is_completed:
+            if self.name == "Jeff":
+                print(f"{self.name} waves silently while quietly nibbling on an acorn.")
+            else:
+                print(f"{self.name}: {self.dialogue.get('quest_complete', 'Thank you for your help!')}")
+        elif self.quest and self.quest.is_active:
             print(f"{self.name}: {self.quest.get_status()}")
         else:
             print(f"{self.name}: {self.dialogue.get('default')}")
@@ -423,10 +428,14 @@ def create_areas():
     # Add items to areas
     park.add_item(Item("Bench", "A wooden bench to sit on."))
     acorn = Item("Acorn", "A small acorn, perfect for planting.", edible=True, nutrition=5)
-    park.add_item(acorn)
+    
+    for i in range(3):
+        street.add_item(acorn)
+        skyscraper_top.add_item(acorn)
+        
+    park.add_item(Jetpack())
     
     house.add_item(Item("Key", "A small key that might open something."))
-    street.add_item(Item("Map", "A map of the city showing all major landmarks."))
     
     # Add food items
     park.add_item(Food("Carrot", "A fresh orange carrot. Bunnies love these!", 15))
