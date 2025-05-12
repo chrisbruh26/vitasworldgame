@@ -117,11 +117,47 @@ class Player {
             area.coordinates.z
         );
         
-        const output = [
-            `You are now in ${area.name}. ${area.description}`
-        ];
+        // Use simplified look for initial area description
+        return this.simpleLook();
+    }
+    
+    simpleLook() {
+        const output = [];
         
-        return output.concat(this.lookAround());
+        // Basic area information
+        output.push(`You are now in ${this.currentArea.name}. ${this.currentArea.description}`);
+        
+        // Get current grid position
+        const [gridX, gridY, gridZ] = this.getGridPosition();
+        output.push(`You are at position (${gridX}, ${gridY}) in ${this.currentArea.name}.`);
+        
+        // Display available directions for movement within the grid
+        output.push("You can move:");
+        if (gridY < this.currentArea.gridLength - 1) {
+            output.push("- north/forward");
+        }
+        if (gridY > 0) {
+            output.push("- south/backward");
+        }
+        if (gridX < this.currentArea.gridWidth - 1) {
+            output.push("- east/right");
+        }
+        if (gridX > 0) {
+            output.push("- west/left");
+        }
+        
+        // Display area connections (exits to other areas)
+        if (Object.keys(this.currentArea.connections).length > 0) {
+            output.push("Area exits:");
+            for (const [direction, area] of Object.entries(this.currentArea.connections)) {
+                output.push(`- ${direction} to ${area.name}`);
+            }
+        }
+        
+        // Add a hint to use 'look' for more details
+        output.push("\nType 'look' to see more details about your surroundings.");
+        
+        return output;
     }
     
     lookAround() {
@@ -357,6 +393,24 @@ class Player {
         } else if (direction === "west" || direction === "left") {
             newX -= distance;
             output.push("You fly west.");
+        } 
+        // Handle diagonal directions
+        else if (direction === "northeast") {
+            newX += distance;
+            newY += distance;
+            output.push("You fly northeast.");
+        } else if (direction === "northwest") {
+            newX -= distance;
+            newY += distance;
+            output.push("You fly northwest.");
+        } else if (direction === "southeast") {
+            newX += distance;
+            newY -= distance;
+            output.push("You fly southeast.");
+        } else if (direction === "southwest") {
+            newX -= distance;
+            newY -= distance;
+            output.push("You fly southwest.");
         } else {
             return [`Unknown direction: ${direction}`];
         }
@@ -459,6 +513,27 @@ class Player {
         
         // Calculate new position based on direction
         direction = direction.toLowerCase();
+        
+        // Handle vertical movement first
+        if (direction === "up") {
+            if (this.isFlying) {
+                return this.fly("up", distance);
+            } else {
+                return ["You need to activate your jetpack to go up."];
+            }
+        } else if (direction === "down") {
+            if (this.isFlying) {
+                return this.fly("down", distance);
+            } else if (gridZ > 0) {
+                // If player is somehow elevated without flying
+                this.coordinates.z = this.currentArea.coordinates.z;
+                return ["You move down to ground level."];
+            } else {
+                return ["You're already at ground level."];
+            }
+        }
+        
+        // Handle cardinal directions
         if (direction === "north" || direction === "forward") {
             newY += distance;
         } else if (direction === "south" || direction === "backward") {
@@ -467,6 +542,20 @@ class Player {
             newX += distance;
         } else if (direction === "west" || direction === "left") {
             newX -= distance;
+        } 
+        // Handle diagonal directions
+        else if (direction === "northeast") {
+            newX += distance;
+            newY += distance;
+        } else if (direction === "northwest") {
+            newX -= distance;
+            newY += distance;
+        } else if (direction === "southeast") {
+            newX += distance;
+            newY -= distance;
+        } else if (direction === "southwest") {
+            newX -= distance;
+            newY -= distance;
         } else {
             return [`Unknown direction: ${direction}`];
         }
@@ -503,18 +592,30 @@ class Player {
                 } else {
                     // Determine entry point on the other side
                     let entryX = 0, entryY = 0;
-                    if (direction === "north") {
+                    if (direction === "north" || direction === "forward") {
                         entryY = 0;  // Enter from the south side
                         entryX = gridX;  // Keep the same x-coordinate
-                    } else if (direction === "south") {
+                    } else if (direction === "south" || direction === "backward") {
                         entryY = connectedArea.gridLength - 1;  // Enter from the north side
                         entryX = gridX;  // Keep the same x-coordinate
-                    } else if (direction === "east") {
+                    } else if (direction === "east" || direction === "right") {
                         entryX = 0;  // Enter from the west side
                         entryY = gridY;  // Keep the same y-coordinate
-                    } else if (direction === "west") {
+                    } else if (direction === "west" || direction === "left") {
                         entryX = connectedArea.gridWidth - 1;  // Enter from the east side
                         entryY = gridY;  // Keep the same y-coordinate
+                    } else if (direction === "northeast") {
+                        entryX = 0;  // Enter from the west side
+                        entryY = 0;  // Enter from the south side
+                    } else if (direction === "northwest") {
+                        entryX = connectedArea.gridWidth - 1;  // Enter from the east side
+                        entryY = 0;  // Enter from the south side
+                    } else if (direction === "southeast") {
+                        entryX = 0;  // Enter from the west side
+                        entryY = connectedArea.gridLength - 1;  // Enter from the north side
+                    } else if (direction === "southwest") {
+                        entryX = connectedArea.gridWidth - 1;  // Enter from the east side
+                        entryY = connectedArea.gridLength - 1;  // Enter from the north side
                     }
                     
                     return this.setCurrentArea(connectedArea, entryX, entryY);
@@ -658,12 +759,111 @@ class Area {
 }
 
 class GameObject {
-    constructor(name, description) {
+    constructor(name, description, coordinates = null) {
         this.name = name;
         this.description = description;
-        this.coordinates = new Coordinates(0, 0, 0);
+        this.coordinates = coordinates || new Coordinates(0, 0, 0);
+    }
+    
+    interact(player) {
+        return [`You interact with the ${this.name}.`];
     }
 }
+
+class Transport extends GameObject {
+    constructor(name, description, coordinates = null) {
+        super(name, description, coordinates);
+        this.destination = null;  // Where this transport leads to
+        this.destination_coords = new Coordinates(0, 0, 0);  // Grid coordinates in the destination area
+    }
+    
+    setDestination(area, gridX = 0, gridY = 0, gridZ = 0) {
+        this.destination = area;
+        this.destination_coords = new Coordinates(gridX, gridY, gridZ);
+        return [`Destination set to ${area.name} at position (${gridX}, ${gridY}, ${gridZ}).`];
+    }
+    
+    transport(player) {
+        if (this.destination) {
+            const [gridX, gridY, gridZ] = [
+                this.destination_coords.x,
+                this.destination_coords.y,
+                this.destination_coords.z
+            ];
+            
+            const output = player.setCurrentArea(this.destination, gridX, gridY);
+            
+            // Update z-coordinate if needed
+            if (gridZ !== 0) {
+                player.coordinates.z = this.destination.coordinates.z + gridZ;
+                output.push(`You are now at elevation ${player.coordinates.z}.`);
+            }
+            
+            output.push(`You travel to ${this.destination.name}.`);
+            return output;
+        } else {
+            return [`${this.name} has no destination set.`];
+        }
+    }
+    
+    // Override the interact method to provide transport functionality
+    interact(player) {
+        if (this.destination) {
+            const output = [`You use the ${this.name}.`];
+            const transportOutput = this.transport(player);
+            return output.concat(transportOutput);
+        } else {
+            return [`The ${this.name} is not in service. No destination is set.`];
+        }
+    }
+}
+
+class Elevator extends Transport {
+    constructor(name = "Elevator", description = "An elevator that can take you to different floors.", coordinates = null) {
+        super(name, description, coordinates);
+        this.floors = {};  // Dictionary mapping floor numbers to [area, gridX, gridY] arrays
+        this.currentFloor = 1;
+    }
+    
+    addFloor(floorNumber, area, gridX = 0, gridY = 0) {
+        this.floors[floorNumber] = [area, gridX, gridY];
+        return [`Floor ${floorNumber} added: ${area.name}`];
+    }
+    
+    goToFloor(floorNumber, player) {
+        if (floorNumber in this.floors) {
+            const [area, gridX, gridY] = this.floors[floorNumber];
+            this.currentFloor = floorNumber;
+            
+            // Set destination to the selected floor
+            this.setDestination(area, gridX, gridY);
+            
+            // Transport player to the floor
+            const output = this.transport(player);
+            output.unshift(`Going to floor ${floorNumber}...`);
+            return output;
+        } else {
+            return [`Floor ${floorNumber} is not accessible from this elevator.`];
+        }
+    }
+    
+    interact(player) {
+        const availableFloors = Object.keys(this.floors).sort((a, b) => a - b);
+        if (availableFloors.length === 0) {
+            return [`This elevator doesn't have any floors configured.`];
+        }
+        
+        const output = [
+            `You are in the elevator. Current floor: ${this.currentFloor}`,
+            `Available floors: ${availableFloors.join(', ')}`
+        ];
+        
+        output.push(`Use 'elevator go to [floor number]' to select a floor.`);
+        return output;
+    }
+}
+
+
 
 class NPC {
     constructor(name, description, dialogue = {}) {
@@ -759,8 +959,8 @@ function initializeGame() {
     park.addConnection("west", house);
     park.addConnection("north", street);
     street.addConnection("east", alley);
+    street.addConnection("north", skyscraperLobby);
     alley.addConnection("up", rooftop);
-    park.addConnection("east", skyscraperLobby);
     skyscraperLobby.addConnection("up", skyscraperMid);
     skyscraperMid.addConnection("up", skyscraperTop);
     
@@ -780,6 +980,51 @@ function initializeGame() {
     
     const jetpack = new Jetpack();
     park.placeObjectAt(jetpack, 7, 7);
+
+
+    // Create an elevator in the skyscraper
+    const skyscraperElevator = new Elevator(
+        "Skyscraper Elevator", 
+        "A modern elevator that can take you to different floors of the skyscraper."
+    );
+    
+    // Add floors to the elevator
+    skyscraperElevator.addFloor(1, skyscraperLobby, 2, 2);  // Floor 1 (Lobby)
+    skyscraperElevator.addFloor(10, skyscraperMid, 2, 2);   // Floor 10 (Mid-level)
+    skyscraperElevator.addFloor(20, skyscraperTop, 2, 2);   // Floor 20 (Top floor)
+    
+    // Place the elevator in each floor
+    skyscraperLobby.placeObjectAt(skyscraperElevator, 2, 2);
+    
+    // Create a second elevator instance for the mid-level floor
+    const midElevator = new Elevator(
+        "Skyscraper Elevator", 
+        "A modern elevator that can take you to different floors of the skyscraper."
+    );
+    midElevator.addFloor(1, skyscraperLobby, 2, 2);
+    midElevator.addFloor(10, skyscraperMid, 2, 2);
+    midElevator.addFloor(20, skyscraperTop, 2, 2);
+    midElevator.currentFloor = 10;  // Set current floor to mid-level
+    skyscraperMid.placeObjectAt(midElevator, 2, 2);
+    
+    // Create a third elevator instance for the top floor
+    const topElevator = new Elevator(
+        "Skyscraper Elevator", 
+        "A modern elevator that can take you to different floors of the skyscraper."
+    );
+    topElevator.addFloor(1, skyscraperLobby, 2, 2);
+    topElevator.addFloor(10, skyscraperMid, 2, 2);
+    topElevator.addFloor(20, skyscraperTop, 2, 2);
+    topElevator.currentFloor = 20;  // Set current floor to top level
+    skyscraperTop.placeObjectAt(topElevator, 2, 2);
+    
+    // Create a transport example (a taxi)
+    const taxi = new Transport(
+        "Taxi", 
+        "A yellow taxi cab that can take you to different locations."
+    );
+    taxi.setDestination(park, 5, 5);
+    street.placeObjectAt(taxi, 7, 2);
     
     
     // Create NPCs
@@ -889,6 +1134,15 @@ function processCommand(command) {
     } else if (command.startsWith("go ")) {
         const direction = command.substring(3);
         output = player.move(direction);
+    } else if (command === "up" || command === "down" || 
+               command === "north" || command === "south" || 
+               command === "east" || command === "west" ||
+               command === "northeast" || command === "northwest" ||
+               command === "southeast" || command === "southwest" ||
+               command === "forward" || command === "backward" ||
+               command === "right" || command === "left") {
+        // Allow direct direction commands without "go"
+        output = player.move(command);
     } else if (command === "inventory" || command === "inv") {
         if (player.inventory.length > 0) {
             output = ["Your inventory:"];
@@ -933,8 +1187,60 @@ function processCommand(command) {
         gameState.pendingQuestAcceptance = null;
     } else if (command === "status") {
         output = player.getStatus();
+    } else if (command.startsWith("use ")) {
+        const objectName = command.substring(4);
+        // Find the object at the player's current position
+        const [gridX, gridY, gridZ] = player.getGridPosition();
+        const objectsHere = player.currentArea.getObjectsAt(gridX, gridY, gridZ);
+        const object = objectsHere.find(obj => obj.name.toLowerCase() === objectName.toLowerCase());
+        
+        if (object) {
+            output = object.interact(player);
+        } else {
+            output = [`There is no ${objectName} here to use.`];
+        }
+    } else if (command.startsWith("elevator go to ") || command.startsWith("elevator goto ")) {
+        // Extract floor number
+        const floorStr = command.includes("goto") ? 
+            command.substring(13) : 
+            command.substring(15);
+        const floorNumber = parseInt(floorStr);
+        
+        if (isNaN(floorNumber)) {
+            output = ["Please specify a valid floor number."];
+        } else {
+            // Find an elevator at the player's current position
+            const [gridX, gridY, gridZ] = player.getGridPosition();
+            const objectsHere = player.currentArea.getObjectsAt(gridX, gridY, gridZ);
+            const elevator = objectsHere.find(obj => obj instanceof Elevator);
+            
+            if (elevator) {
+                output = elevator.goToFloor(floorNumber, player);
+            } else {
+                output = ["There is no elevator here."];
+            }
+        }
+    } else if (command === "help") {
+        output = [
+            "Available commands:",
+            "- look - Look around your current location",
+            "- go [direction] - Move in a direction (north, south, east, west, northeast, etc.)",
+            "- up/down - Move vertically (requires jetpack for up)",
+            "- pick up [item] - Pick up an item",
+            "- drop [item] - Drop an item from your inventory",
+            "- inventory or inv - Check your inventory",
+            "- eat [item] - Eat food",
+            "- activate jetpack - Start flying",
+            "- deactivate jetpack - Stop flying",
+            "- fly [direction] - Fly in a direction",
+            "- talk to [npc] - Talk to an NPC",
+            "- use [object] - Interact with an object at your location",
+            "- elevator go to [floor] - Use an elevator to go to a specific floor",
+            "- status - Check your status",
+            "- help - Show this help message"
+        ];
     } else {
-        output = ["Command not recognized. Try again."];
+        output = ["Command not recognized. Try 'help' for a list of commands."];
     }
     
     return output;
@@ -954,7 +1260,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const welcomeMessages = [
                 "Welcome to the Vita Game!",
                 "You are Vita, a mischievous bunny with a jetpack and a taste for adventure.",
-                "Explore the world, cause some chaos, and have fun!"
+                "Explore the world, cause some chaos, and have fun!",
+                "Type 'look' to see details about your surroundings, or 'help' for a list of commands."
             ];
             
             for (const msg of welcomeMessages) {
