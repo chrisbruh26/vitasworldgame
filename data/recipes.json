@@ -1,0 +1,100 @@
+{
+    "recipe_upgraded_jetpack": {
+        "id": "recipe_upgraded_jetpack",
+        "name": "Upgraded Jetpack",
+        "description": "Craft an improved jetpack with better fuel efficiency.",
+        "ingredients": {
+            "Jetpack": 1,
+            "Metal Scrap": 3,
+            "Fabric": 2
+        },
+        "result": {
+            "type": "Jetpack",
+            "name": "Upgraded Jetpack",
+            "description": "An improved jetpack with better fuel efficiency.",
+            "fuel": 150,
+            "max_fuel": 150,
+            "fuel_efficiency": 0.7,
+            "value": 800
+        },
+        "skill_requirements": {
+            "engineering": 1
+        }
+    },
+    "recipe_health_potion": {
+        "id": "recipe_health_potion",
+        "name": "Health Potion",
+        "description": "Craft a potion that restores health and energy.",
+        "ingredients": {
+            "Apple": 2,
+            "Carrot": 1
+        },
+        "result": {
+            "type": "Food",
+            "name": "Health Potion",
+            "description": "A potion that restores health and energy.",
+            "nutrition": 30,
+            "effects": {"energy": 50},
+            "value": 30
+        },
+        "skill_requirements": {
+            "alchemy": 1
+        }
+    },
+    "recipe_super_jetpack": {
+        "id": "recipe_super_jetpack",
+        "name": "Super Jetpack",
+        "description": "Craft an advanced jetpack with excellent fuel efficiency.",
+        "ingredients": {
+            "Upgraded Jetpack": 1,
+            "Metal Scrap": 5,
+            "Fabric": 3
+        },
+        "result": {
+            "type": "Jetpack",
+            "name": "Super Jetpack",
+            "description": "An advanced jetpack with excellent fuel efficiency.",
+            "fuel": 200,
+            "max_fuel": 200,
+            "fuel_efficiency": 0.5,
+            "value": 1000
+        },
+        "skill_requirements": {
+            "engineering": 2
+        }
+    },
+    "recipe_golden_carrot": {
+        "id": "recipe_golden_carrot",
+        "name": "Golden Carrot",
+        "description": "Craft a special golden carrot with enhanced effects.",
+        "ingredients": {
+            "Carrot": 3,
+            "Golden Acorn": 1
+        },
+        "result": {
+            "type": "Food",
+            "name": "Golden Carrot",
+            "description": "A special golden carrot that provides a lot of energy.",
+            "nutrition": 40,
+            "effects": {"energy": 30, "street_cred": 3},
+            "value": 60
+        },
+        "skill_requirements": {
+            "cooking": 1
+        }
+    },
+    "recipe_fuel_canister": {
+        "id": "recipe_fuel_canister",
+        "name": "Fuel Canister",
+        "description": "Craft a canister of fuel for vehicles or jetpacks.",
+        "ingredients": {
+            "Metal Scrap": 2
+        },
+        "result": {
+            "template": "fuel_canister"
+        },
+        "skill_requirements": {
+            "engineering": 1
+        }
+    }
+}

@@ -1,0 +1,25 @@
+{
+    "elevator": {
+        "type": "Elevator",
+        "name": "Elevator",
+        "description": "An elevator that can take you to different floors."
+    },
+    "car": {
+        "type": "Vehicle",
+        "name": "Car",
+        "description": "A standard car that can be driven around.",
+        "speed": 3,
+        "fuel": 100,
+        "max_fuel": 100
+    },
+    "door": {
+        "type": "Door",
+        "name": "Door",
+        "description": "A standard door that connects areas."
+    },
+    "vending_machine": {
+        "type": "VendingMachine",
+        "name": "Vending Machine",
+        "description": "A vending machine selling various items."
+    }
+}
