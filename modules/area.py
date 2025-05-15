@@ -1,0 +1,136 @@
+"""
+Area module for the game.
+Handles game world areas and their connections.
+"""
+
+from .coordinates import Coordinates
+
+class Area:
+    """Area class representing different locations in the game world."""
+    def __init__(self, name, description, area_origin_coords=None, grid_width=10, grid_length=10):
+        self.name = name
+        self.description = description
+        # The global coordinates of the (0,0) point of this area's grid
+        self.area_origin_coords = area_origin_coords if area_origin_coords else Coordinates(0, 0, 0)
+        self.grid_width = grid_width
+        self.grid_length = grid_length
+        self.connections = {}  # direction_str -> connected_Area_object
+        
+        # For objects within the area's grid
+        # Key: (grid_x, grid_y), Value: list of objects (Item or NPC instances)
+        self.grid_objects = {} 
+        self.items = [] # List of Item instances physically in this area
+        self.npcs = []  # List of NPC instances physically in this area
+        self.id = f"area_{name.lower().replace(' ', '_')}"
+
+    def add_connection(self, direction, connected_area):
+        """Add a connection to another area and a reverse connection."""
+        self.connections[direction.lower()] = connected_area
+        reverse_directions = {
+            "north": "south", "south": "north",
+            "east": "west", "west": "east",
+            "up": "down", "down": "up" # For potential future use
+        }
+        if direction.lower() in reverse_directions:
+            reverse_dir = reverse_directions[direction.lower()]
+            if reverse_dir not in connected_area.connections: # Avoid infinite recursion
+                connected_area.add_connection(reverse_dir, self)
+
+    def is_valid_grid_position(self, grid_x, grid_y):
+        """Check if the given grid coordinates are within the area's bounds."""
+        return 0 <= grid_x < self.grid_width and 0 <= grid_y < self.grid_length
+
+    def get_global_coordinates(self, grid_x, grid_y, grid_z=0):
+        """Convert local grid coordinates to global world coordinates."""
+        return Coordinates(
+            self.area_origin_coords.x + grid_x,
+            self.area_origin_coords.y + grid_y,
+            self.area_origin_coords.z + grid_z # Assuming items/NPCs are at base Z of area for now
+        )
+
+    def get_relative_coordinates(self, global_coords):
+        """Convert global world coordinates to local grid coordinates."""
+        return (
+            global_coords.x - self.area_origin_coords.x,
+            global_coords.y - self.area_origin_coords.y,
+            global_coords.z - self.area_origin_coords.z
+        )
+
+    def add_object_to_grid(self, obj, grid_x, grid_y):
+        """Adds an object (Item or NPC) to a specific grid cell and updates its global coords."""
+        if not self.is_valid_grid_position(grid_x, grid_y):
+            print(f"Warning: Cannot place {obj.name} at ({grid_x},{grid_y}) in {self.name}. Out of bounds.")
+            return
+
+        obj.coordinates = self.get_global_coordinates(grid_x, grid_y)
+        
+        grid_pos = (grid_x, grid_y)
+        if grid_pos not in self.grid_objects:
+            self.grid_objects[grid_pos] = []
+        
+        if obj not in self.grid_objects[grid_pos]:
+            self.grid_objects[grid_pos].append(obj)
+
+        # Add to specific lists if not already present
+        from .item import Item # Avoid circular import at module level
+        from .npc import NPC
+        if isinstance(obj, Item) and obj not in self.items:
+            self.items.append(obj)
+        elif isinstance(obj, NPC) and obj not in self.npcs:
+            self.npcs.append(obj)
+            obj.location = self
+
+    def remove_object_from_grid(self, obj, grid_x, grid_y):
+        """Removes an object from a specific grid cell."""
+        grid_pos = (grid_x, grid_y)
+        if grid_pos in self.grid_objects and obj in self.grid_objects[grid_pos]:
+            self.grid_objects[grid_pos].remove(obj)
+            if not self.grid_objects[grid_pos]: # If list is empty, delete key
+                del self.grid_objects[grid_pos]
+
+        # Also remove from specific lists
+        from .item import Item
+        from .npc import NPC
+        if isinstance(obj, Item) and obj in self.items:
+            self.items.remove(obj)
+        elif isinstance(obj, NPC) and obj in self.npcs:
+            self.npcs.remove(obj)
+            # obj.location = None # Handled by NPC.set_location or when NPC moves areas
+
+    def get_objects_at_grid_cell(self, grid_x, grid_y):
+        """Get all objects at a specific grid cell."""
+        return self.grid_objects.get((grid_x, grid_y), [])
+
+    def __str__(self):
+        return f"{self.name} (Origin: {self.area_origin_coords}, Size: {self.grid_width}x{self.grid_length})"
+
+
+class AreaManager:
+    """Manages all areas in the game world."""
+    def __init__(self):
+        self.areas = {}  # area_id -> Area_object
+
+    def add_area(self, area):
+        """Add an area to the manager."""
+        if area.id in self.areas:
+            print(f"Warning: Area with ID '{area.id}' already exists. Overwriting.")
+        self.areas[area.id] = area
+
+    def get_area(self, area_id_or_name):
+        """Get an area by its ID or case-insensitive name."""
+        if area_id_or_name in self.areas:
+            return self.areas[area_id_or_name]
+        for area in self.areas.values():
+            if area.name.lower() == area_id_or_name.lower():
+                return area
+        return None
+
+    def connect_areas(self, area1_id, direction, area2_id):
+        """Connect two areas in the specified direction."""
+        area1 = self.get_area(area1_id)
+        area2 = self.get_area(area2_id)
+        if area1 and area2:
+            area1.add_connection(direction, area2)
+            return True
+        print(f"Error connecting areas: One or both not found ('{area1_id}', '{area2_id}')")
+        return False

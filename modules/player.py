@@ -1,0 +1,186 @@
+"""
+Player module for the game.
+Handles the player character and their interactions with the game world.
+"""
+
+from .coordinates import Coordinates
+from .item import Item
+
+class Player:
+    """Player class for the game."""
+    def __init__(self, name="Vita", start_money=100):
+        self.name = name
+        self.inventory = []
+        self.current_area = None
+        self.coordinates = Coordinates(0, 0, 0) # Global coordinates
+        self.money = start_money
+
+    def set_current_area(self, area, grid_x=None, grid_y=None):
+        """Set the current area for the player and position them on its grid."""
+        self.current_area = area
+        if area:
+            if grid_x is None:
+                grid_x = area.grid_width // 2
+            if grid_y is None:
+                grid_y = area.grid_length // 2
+            
+            # Ensure player is within bounds
+            grid_x = max(0, min(grid_x, area.grid_width - 1))
+            grid_y = max(0, min(grid_y, area.grid_length - 1))
+
+            self.coordinates = area.get_global_coordinates(grid_x, grid_y)
+            print(f"You are now in {area.name}. {area.description}")
+            self.look_around()
+        else:
+            print("Error: Tried to move to a null area.")
+
+    def get_grid_position(self):
+        """Get the player's position relative to the current area's grid."""
+        if not self.current_area:
+            return None, None
+        rel_coords = self.current_area.get_relative_coordinates(self.coordinates)
+        return int(rel_coords[0]), int(rel_coords[1])
+
+    def look_around(self):
+        """Look around the current area."""
+        if not self.current_area:
+            print("You are floating in the void...")
+            return
+
+        grid_x, grid_y = self.get_grid_position()
+        print(f"\n--- {self.current_area.name} ---")
+        print(self.current_area.description)
+        print(f"You are at grid position ({grid_x}, {grid_y}).")
+
+        # Display items at current position
+        objects_here = self.current_area.get_objects_at_grid_cell(grid_x, grid_y)
+        items_here = [obj for obj in objects_here if isinstance(obj, Item)]
+        if items_here:
+            print("Items at your feet:")
+            for item in items_here:
+                print(f"  - {item.name}: {item.description}")
+        
+        # Display NPCs at current position
+        from .npc import NPC # avoid circular import
+        npcs_here = [obj for obj in objects_here if isinstance(obj, NPC)]
+        if npcs_here:
+            print("People here:")
+            for npc in npcs_here:
+                print(f"  - {npc.name}")
+
+        # Display other items and NPCs in the area (simplified for now)
+        # This could be expanded to show relative directions
+        if self.current_area.items:
+            print("Other items in the area:")
+            for item in self.current_area.items:
+                if item not in items_here: # Don't list items at feet again
+                    item_gx, item_gy = self.current_area.get_relative_coordinates(item.coordinates)[:2]
+                    print(f"  - {item.name} at ({int(item_gx)}, {int(item_gy)})")
+
+        if self.current_area.npcs:
+            print("Other people in the area:")
+            for npc in self.current_area.npcs:
+                if npc not in npcs_here:
+                    npc_gx, npc_gy = self.current_area.get_relative_coordinates(npc.coordinates)[:2]
+                    print(f"  - {npc.name} at ({int(npc_gx)}, {int(npc_gy)})")
+
+        # Display area connections
+        if self.current_area.connections:
+            print("Exits:")
+            for direction, area in self.current_area.connections.items():
+                print(f"  - {direction.capitalize()}: to {area.name}")
+        print("---")
+
+    def move(self, direction):
+        """Move the player one step in a direction or through a connection."""
+        if not self.current_area:
+            print("You can't move, you're not in any area.")
+            return
+
+        grid_x, grid_y = self.get_grid_position()
+        new_grid_x, new_grid_y = grid_x, grid_y
+
+        if direction == "north": new_grid_y += 1
+        elif direction == "south": new_grid_y -= 1
+        elif direction == "east": new_grid_x += 1
+        elif direction == "west": new_grid_x -= 1
+        else: # Check for area connection by direction name
+            if direction in self.current_area.connections:
+                self.set_current_area(self.current_area.connections[direction])
+                return
+            print(f"Unknown direction: {direction}. Try north, south, east, west, or an exit name.")
+            return
+
+        if self.current_area.is_valid_grid_position(new_grid_x, new_grid_y):
+            self.coordinates = self.current_area.get_global_coordinates(new_grid_x, new_grid_y)
+            print(f"You move {direction}.")
+            self.look_around() # Show what's at the new position
+        elif direction in self.current_area.connections: # Edge of grid, try to use connection
+             self.set_current_area(self.current_area.connections[direction])
+        else:
+            print("You can't go that way.")
+
+    def teleport(self, target_area, grid_x=None, grid_y=None):
+        """Teleport to a specific area, optionally to specific grid coordinates."""
+        if not target_area:
+            print("Teleport target area not found.")
+            return
+        self.set_current_area(target_area, grid_x, grid_y)
+        print(f"You teleport to {target_area.name}.")
+
+    def add_item(self, item):
+        """Add an item to the player's inventory."""
+        self.inventory.append(item)
+        item.coordinates = None # Item is no longer in the world
+        print(f"You picked up {item.name}.")
+
+    def remove_item(self, item_name):
+        """Remove an item from inventory and drop it in the current area."""
+        item_to_drop = None
+        for item in self.inventory:
+            if item.name.lower() == item_name.lower():
+                item_to_drop = item
+                break
+        
+        if item_to_drop:
+            self.inventory.remove(item_to_drop)
+            print(f"You dropped {item_to_drop.name}.")
+            if self.current_area:
+                player_gx, player_gy = self.get_grid_position()
+                self.current_area.add_object_to_grid(item_to_drop, player_gx, player_gy)
+        else:
+            print(f"You don't have '{item_name}' in your inventory.")
+
+    def pick_up(self, item_name):
+        """Pick up an item from the current area."""
+        if not self.current_area:
+            print("You are not in an area to pick up items from.")
+            return
+
+        player_gx, player_gy = self.get_grid_position()
+        objects_at_player = self.current_area.get_objects_at_grid_cell(player_gx, player_gy)
+        
+        item_to_pickup = None
+        for obj in objects_at_player:
+            if isinstance(obj, Item) and obj.name.lower() == item_name.lower():
+                if obj.pickupable:
+                    item_to_pickup = obj
+                    break
+                else:
+                    print(f"You can't pick up {obj.name}.")
+                    return
+        
+        if item_to_pickup:
+            self.current_area.remove_object_from_grid(item_to_pickup, player_gx, player_gy)
+            self.add_item(item_to_pickup)
+        else:
+            print(f"You don't see '{item_name}' here to pick up.")
+
+    def show_inventory(self):
+        if not self.inventory:
+            print("Your inventory is empty.")
+        else:
+            print("\nInventory:")
+            for item in self.inventory:
+                print(f"  - {item.name}")
+        print(f"Money: ${self.money}")
