@@ -389,7 +389,15 @@ class GameManager:
             effects={"energy": 10}
         )
         self.item_manager.add_item(carrot)
-        
+
+        street_cred_potion = Food(
+            "Street Cred Potion",
+            "Drink to gain street cred and increase your influence over others.",
+            nutrition=15,
+            effects={"street_cred": 30}
+        )
+        self.item_manager.add_item(street_cred_potion)
+
         apple = Food(
             "Apple",
             "A juicy red apple.",
@@ -424,12 +432,17 @@ class GameManager:
         if park:
             park.place_object_at(carrot, 3, 3)
             park.place_object_at(jetpack, 5, 5)
+            park.place_object_at(street_cred_potion, 5, 5)
         
         house = self.area_manager.get_area("house")
         if house:
             house.place_object_at(apple, 2, 2)
             house.place_object_at(metal, 3, 3)
             house.place_object_at(fabric, 4, 4)
+
+        # to place clothing items in the store Fashion Trends, which would come from templates that I already created, we need to get the area and then place the items. However, 
+
+
     
     def create_starting_npcs(self):
         """Create the starting NPCs for the game."""
@@ -491,9 +504,25 @@ class GameManager:
         """
         # Find the Fashion Trends store
         fashion_trends = None
-        mall = self.area_manager.get_area("grayton_mall")
         
-        # If we can't find it directly, look for it in all areas
+        # Try to find the mall first
+        mall = None
+        for area in self.area_manager.areas.values():
+            if "mall" in area.name.lower() or (hasattr(area, 'id') and "mall" in area.id.lower()):
+                mall = area
+                break
+                
+        # If we found the mall, check if Fashion Trends is connected to it
+        if mall:
+            print(f"Found mall: {mall.name}")
+            # Check if Fashion Trends is directly connected to the mall
+            for area_id in mall.connections.values():
+                area = self.area_manager.get_area(area_id)
+                if area and area.name == "Fashion Trends":
+                    fashion_trends = area
+                    break
+        
+        # If we still can't find it, look for it in all areas
         if not fashion_trends:
             for area in self.area_manager.areas.values():
                 if area.name == "Fashion Trends":
@@ -503,7 +532,12 @@ class GameManager:
         # If still not found, it might not have been created yet
         if not fashion_trends:
             print("Warning: Fashion Trends store not found. Cannot populate with NPCs.")
+            print("Available areas:")
+            for area in self.area_manager.areas.values():
+                print(f"  - {area.name} (ID: {area.id if hasattr(area, 'id') else 'N/A'})")
             return
+            
+        print(f"Found Fashion Trends store: {fashion_trends.name} (ID: {fashion_trends.id if hasattr(fashion_trends, 'id') else 'N/A'})")
             
         # Add clothing items to the store
         try:
@@ -518,13 +552,19 @@ class GameManager:
                 {"template": "Headband", "position": (4, 1)}
             ]
             
+            # Debug: Print available templates
+            print("Available item templates:")
+            for template_id in self.item_manager.templates.keys():
+                print(f"  - {template_id}")
+                
             # Try to create each item
             for item_info in clothing_items:
                 try:
+                    print(f"Attempting to create item from template: {item_info['template']}")
                     item = self.item_manager.create_from_template(item_info["template"])
                     if item:
                         fashion_trends.place_object_at(item, item_info["position"][0], item_info["position"][1])
-                        print(f"Added {item.name} to Fashion Trends store")
+                        print(f"Successfully added {item.name} to Fashion Trends store at position {item_info['position']}")
                 except ValueError as e:
                     print(f"Error creating {item_info['template']}: {e}")
                     
@@ -960,8 +1000,42 @@ class GameManager:
                 # Process area name if found
                 if area_name_parts:
                     area_name = " ".join(area_name_parts)
+                    area_name_lower = area_name.lower()
+                    
+                    # First try exact match (case-insensitive)
                     area = next((a for a in self.area_manager.areas.values() 
-                                if a.name.lower() == area_name.lower()), None)
+                                if a.name.lower() == area_name_lower), None)
+                    
+                    # If no exact match, try partial match
+                    if not area:
+                        matching_areas = [a for a in self.area_manager.areas.values() 
+                                        if area_name_lower in a.name.lower() or 
+                                        (hasattr(a, 'id') and area_name_lower in a.id.lower())]
+                        
+                        # If we found exactly one match, use it
+                        if len(matching_areas) == 1:
+                            area = matching_areas[0]
+                        # If we found multiple matches, let the player choose
+                        elif len(matching_areas) > 1:
+                            print(f"Multiple areas match '{area_name}'. Please choose one:")
+                            for i, a in enumerate(matching_areas, 1):
+                                print(f"{i}. {a.name}")
+                            
+                            choice = input("Enter number (or 'cancel'): ")
+                            if choice.lower() == 'cancel':
+                                return
+                            
+                            try:
+                                index = int(choice) - 1
+                                if 0 <= index < len(matching_areas):
+                                    area = matching_areas[index]
+                                else:
+                                    print("Invalid choice.")
+                                    return
+                            except ValueError:
+                                print("Please enter a number.")
+                                return
+                    
                     if not area:
                         print(f"Area '{area_name}' not found.")
                         return
@@ -975,10 +1049,12 @@ class GameManager:
             else:
                 print("Usage: teleport [area name] [x,y]")
                 print("Examples:")
-                print("  teleport Home")
-                print("  teleport 3,4")
-                print("  teleport Home 3,4")
-                print("  teleport Home 3 4")
+                print("  teleport Home             - Teleport to the center of Home area")
+                print("  teleport 3,4              - Teleport to coordinates (3,4) in current area")
+                print("  teleport Home 3,4         - Teleport to coordinates (3,4) in Home area")
+                print("  teleport Home 3 4         - Same as above, with space-separated coordinates")
+                print("  teleport Downtown         - Partial name matching works too!")
+                print("Note: You can use 'tp' as a shorthand for 'teleport'")
  
 
 

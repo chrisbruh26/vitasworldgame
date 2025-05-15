@@ -755,12 +755,13 @@ class Player:
                 print(f"  Business Income: ${property_data['business_income']} per day")
             print()
     
-    def teleport(self, area_name, area_manager):
-        """Teleport to a named area.
+    def teleport(self, area, grid_x=None, grid_y=None):
+        """Teleport to an area and/or specific coordinates.
         
         Args:
-            area_name (str): The name of the area to teleport to
-            area_manager (AreaManager): The game's area manager to find areas
+            area (Area): The area object to teleport to
+            grid_x (int, optional): The x-coordinate within the area's grid
+            grid_y (int, optional): The y-coordinate within the area's grid
             
         Returns:
             bool: True if teleportation was successful, False otherwise
@@ -768,54 +769,28 @@ class Player:
         if not self.can_teleport:
             print("You don't have teleportation abilities!")
             return False
-            
-        area_name_lower = area_name.lower()
         
-        # First try exact match (case-insensitive)
-        target_area = None
-        for area in area_manager.areas.values():
-            if area.name.lower() == area_name_lower:
-                target_area = area
-                break
-        
-        # If no exact match, try partial match
-        if not target_area:
-            matching_areas = []
-            for area in area_manager.areas.values():
-                if area_name_lower in area.name.lower() or area_name_lower in area.id.lower():
-                    matching_areas.append(area)
-            
-            # If we found exactly one match, use it
-            if len(matching_areas) == 1:
-                target_area = matching_areas[0]
-            # If we found multiple matches, let the player choose
-            elif len(matching_areas) > 1:
-                print(f"Multiple areas match '{area_name}'. Please choose one:")
-                for i, area in enumerate(matching_areas, 1):
-                    print(f"{i}. {area.name}")
-                
-                choice = input("Enter number (or 'cancel'): ")
-                if choice.lower() == 'cancel':
-                    return False
-                
-                try:
-                    index = int(choice) - 1
-                    if 0 <= index < len(matching_areas):
-                        target_area = matching_areas[index]
-                    else:
-                        print("Invalid choice.")
-                        return False
-                except ValueError:
-                    print("Please enter a number.")
-                    return False
-                
-        if not target_area:
-            print(f"Unknown area: {area_name}")
+        if not area:
+            print("No valid area specified for teleportation.")
             return False
+        
+        # Determine grid position
+        if grid_x is not None and grid_y is not None:
+            # Ensure coordinates are within area bounds
+            if grid_x < 0 or grid_x >= area.grid_width or grid_y < 0 or grid_y >= area.grid_length:
+                print(f"Coordinates ({grid_x}, {grid_y}) are outside the bounds of {area.name}.")
+                print(f"Valid range: (0-{area.grid_width-1}, 0-{area.grid_length-1})")
+                return False
             
-        # Teleport to the area
-        print(f"*ZAP* You teleport to {target_area.name}!")
-        self.set_current_area(target_area)
+            print(f"*ZAP* You teleport to {area.name} at coordinates ({grid_x}, {grid_y})!")
+            self.set_current_area(area, grid_x, grid_y)
+        else:
+            # Default to center of area if no coordinates specified
+            default_x = area.grid_width // 2
+            default_y = area.grid_length // 2
+            print(f"*ZAP* You teleport to {area.name}!")
+            self.set_current_area(area, default_x, default_y)
+        
         return True
         
     def to_dict(self):

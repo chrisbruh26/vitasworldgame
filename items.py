@@ -247,10 +247,18 @@ class ItemManager:
     
     def create_from_template(self, template_id, **kwargs):
         """Create an item from a template."""
-        if template_id not in self.templates:
-            raise ValueError(f"Unknown item template: {template_id}")
+        # Try exact match first
+        if template_id in self.templates:
+            template_key = template_id
+        else:
+            # Try case-insensitive match
+            template_key = next((k for k in self.templates.keys() 
+                               if k.lower() == template_id.lower()), None)
+            
+            if template_key is None:
+                raise ValueError(f"Unknown item template: {template_id}")
         
-        template = self.templates[template_id].copy()
+        template = self.templates[template_key].copy()
         item_type = template.pop("type")
         
         # Override template values with provided kwargs
@@ -267,6 +275,14 @@ class ItemManager:
             item = Money(template.get("amount", 1))
         elif item_type == "CraftingIngredient":
             item = CraftingIngredient(**template)
+        elif item_type == "Clothing":
+            # For clothing items, use the base Item class
+            # You could create a Clothing class in the future for more specific functionality
+            item = Item(
+                template.get("name", "Clothing Item"),
+                template.get("description", "A piece of clothing."),
+                value=template.get("value", 10)
+            )
         else:
             raise ValueError(f"Unknown item type: {item_type}")
         
