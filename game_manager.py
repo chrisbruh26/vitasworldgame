@@ -473,6 +473,131 @@ class GameManager:
         street = self.area_manager.get_area("street")
         if street:
             street.place_object_at(Dave, 5, 2)
+            
+        # Add NPCs to Fashion Trends store
+        self.populate_fashion_trends_store()
+        
+    def populate_fashion_trends_store(self):
+        """
+        Populate the Fashion Trends store with NPCs and clothing items.
+        
+        # AREA POPULATION: This method shows how to add NPCs and items to an area
+        
+        This method:
+        1. Finds the Fashion Trends store
+        2. Adds clothing items to the store
+        3. Creates 5 NPCs with shopping interests
+        4. Places the NPCs in the store
+        """
+        # Find the Fashion Trends store
+        fashion_trends = None
+        mall = self.area_manager.get_area("grayton_mall")
+        
+        # If we can't find it directly, look for it in all areas
+        if not fashion_trends:
+            for area in self.area_manager.areas.values():
+                if area.name == "Fashion Trends":
+                    fashion_trends = area
+                    break
+        
+        # If still not found, it might not have been created yet
+        if not fashion_trends:
+            print("Warning: Fashion Trends store not found. Cannot populate with NPCs.")
+            return
+            
+        # Add clothing items to the store
+        try:
+            # Create items with proper error handling
+            clothing_items = [
+                {"template": "T-shirt", "position": (1, 1)},
+                {"template": "Skirt", "position": (1, 2)},
+                {"template": "Pants", "position": (2, 1)},
+                {"template": "Shoes", "position": (2, 2)},
+                {"template": "Hat", "position": (3, 1)},
+                {"template": "Backpack", "position": (3, 2)},
+                {"template": "Headband", "position": (4, 1)}
+            ]
+            
+            # Try to create each item
+            for item_info in clothing_items:
+                try:
+                    item = self.item_manager.create_from_template(item_info["template"])
+                    if item:
+                        fashion_trends.place_object_at(item, item_info["position"][0], item_info["position"][1])
+                        print(f"Added {item.name} to Fashion Trends store")
+                except ValueError as e:
+                    print(f"Error creating {item_info['template']}: {e}")
+                    
+                    # If template not found, create the item directly
+                    from modules.items import Item
+                    
+                    # Get template data from JSON file
+                    template_data = None
+                    try:
+                        with open(os.path.join(self.data_dir, "item_templates.json"), 'r') as f:
+                            templates = json.load(f)
+                            if item_info["template"] in templates:
+                                template_data = templates[item_info["template"]]
+                    except Exception as json_err:
+                        print(f"Error loading template data: {json_err}")
+                    
+                    # Create item directly if we have template data
+                    if template_data:
+                        item = Item(
+                            template_data.get("name", item_info["template"]),
+                            template_data.get("description", "A clothing item."),
+                            template_data.get("type", "Clothing"),
+                            template_data.get("value", 20)
+                        )
+                        fashion_trends.place_object_at(item, item_info["position"][0], item_info["position"][1])
+                        print(f"Created {item.name} directly and added to Fashion Trends store")
+        except Exception as e:
+            print(f"Error adding clothing items: {e}")
+            
+        # Create 5 NPCs with shopping interests
+        for i in range(1, 6):
+            # Create a shopper NPC
+            shopper = NPC(
+                f"Shopper {i}",
+                f"A person shopping for clothes.",
+                dialogue={
+                    "default": "I'm just looking around for some new clothes.",
+                    "friendly": "Hey there! Do you think this would look good on me?"
+                },
+                personality={
+                    "friendliness": 50,
+                    "fashion_sense": 70
+                },
+                money=100 + (i * 20)  # Give each shopper a different amount of money
+            )
+            
+            # Set shopping preference
+            shopper.set_property("likes_shopping", True)
+            
+            # Add to manager
+            self.npc_manager.add_npc(shopper)
+            
+            # Place in store at different positions
+            fashion_trends.place_object_at(shopper, i, 3)
+            
+        # Add a store clerk
+        clerk = NPC(
+            "Store Clerk",
+            "A helpful employee of Fashion Trends.",
+            dialogue={
+                "default": "Welcome to Fashion Trends! Let me know if you need any help.",
+                "friendly": "Great to see you again! We just got some new items in stock."
+            },
+            personality={
+                "friendliness": 80,
+                "helpfulness": 90
+            },
+            money=200
+        )
+        self.npc_manager.add_npc(clerk)
+        fashion_trends.place_object_at(clerk, 4, 4)
+        
+        print(f"Added 5 shoppers and a clerk to Fashion Trends store with clothing items.")
     
     def create_starting_objects(self):
         """Create the starting objects for the game."""
@@ -631,8 +756,8 @@ class GameManager:
         """Update the game time and related systems."""
         self.game_time += minutes
         
-        # Update NPCs based on time
-        self.npc_manager.update_all_npcs(self.game_time)
+        # Update NPCs based on time, passing the player for influence checks
+        self.npc_manager.update_all_npcs(self.game_time, self.player)
         
         # Update player hunger
         self.player.hunger = min(self.player.max_hunger, self.player.hunger + minutes * 0.1)
@@ -779,18 +904,84 @@ class GameManager:
         # Help command
         elif action == "help":
             self.show_help()
-        
-        # Teleport commands
+
+
+        # Position/coordinates command
+        elif action in ["position", "pos", "coordinates", "coords", "where"]:
+            # If no arguments, show player's position
+            if len(parts) == 1:
+                if self.player.current_area:
+                    grid_x, grid_y, grid_z = self.player.get_grid_position()
+                    print(f"You are in: {self.player.current_area.name}")
+                    print(f"Grid coordinates: ({grid_x}, {grid_y})")
+                    print(f"Area dimensions: {self.player.current_area.grid_width}x{self.player.current_area.grid_length}")
+                else:
+                    print("You're not in any area.")
+            # If arguments, find the coordinates of the specified entity
+            else:
+                entity_name = " ".join(parts[1:]).lower()
+                self.find_entity_coordinates(entity_name)
+
+
+
         elif action in ["teleport", "tp"]:
             if len(parts) > 1:
-                area_name = " ".join(parts[1:])
-                self.player.teleport(area_name, self.area_manager)
+                # Parse the command to extract area name and/or coordinates
+                area = None
+                grid_x = None
+                grid_y = None
+                
+                # Check for coordinates in the format "x,y" or "x y"
+                coord_parts = []
+                area_name_parts = []
+                
+                for part in parts[1:]:
+                    # Check if part is a coordinate pair (x,y)
+                    if "," in part:
+                        try:
+                            x, y = map(int, part.split(","))
+                            grid_x, grid_y = x, y
+                            continue  # Skip this part in further processing
+                        except ValueError:
+                            pass  # Not valid coordinates, treat as part of area name
+                    
+                    # Check if part is a number (potential coordinate)
+                    if part.isdigit():
+                        coord_parts.append(int(part))
+                        continue  # Skip this part in further processing
+                    
+                    # If we get here, it's part of the area name
+                    area_name_parts.append(part)
+                
+                # Process coordinates if found as separate numbers
+                if len(coord_parts) >= 2:
+                    grid_x, grid_y = coord_parts[0], coord_parts[1]
+                
+                # Process area name if found
+                if area_name_parts:
+                    area_name = " ".join(area_name_parts)
+                    area = next((a for a in self.area_manager.areas.values() 
+                                if a.name.lower() == area_name.lower()), None)
+                    if not area:
+                        print(f"Area '{area_name}' not found.")
+                        return
+                
+                # If only coordinates were specified (no area name), use current area
+                if area is None and (grid_x is not None or grid_y is not None):
+                    area = self.player.current_area
+                
+                # Teleport the player
+                self.player.teleport(area, grid_x, grid_y)
             else:
-                print("Where do you want to teleport to?")
-                # List available areas
-                print("\nAvailable areas:")
-                for area in self.area_manager.areas.values():
-                    print(f"- {area.name}")
+                print("Usage: teleport [area name] [x,y]")
+                print("Examples:")
+                print("  teleport Home")
+                print("  teleport 3,4")
+                print("  teleport Home 3,4")
+                print("  teleport Home 3 4")
+ 
+
+
         
         # Areas command to list all areas
         elif action == "areas":
@@ -899,6 +1090,100 @@ class GameManager:
         print("\nTo teleport to an area, use:")
         print("  teleport <area name>  or  tp <area name>")
         print("You can use partial names like 'mall' or 'cafe'.")
+
+
+
+    def find_entity_coordinates(self, entity_name):
+        """Find the coordinates of an entity (NPC, item, or object) by name."""
+        found_entities = []
+        entity_name = entity_name.lower()
+        
+        # Search for NPCs in areas
+        for area in self.area_manager.areas.values():
+            for npc in area.npcs:
+                if entity_name in npc.name.lower():
+                    # Get relative coordinates within the area
+                    rel_x, rel_y, rel_z = area.get_relative_coordinates(npc.coordinates)
+                    found_entities.append({
+                        "type": "NPC",
+                        "name": npc.name,
+                        "area": area.name,
+                        "rel_coords": (rel_x, rel_y, rel_z),
+                        "global_coords": (npc.coordinates.x, npc.coordinates.y, npc.coordinates.z),
+                        "activity": npc.current_activity
+                    })
+        
+        # Also search for NPCs in the NPC manager (in case they're not in an area yet)
+        for npc_id, npc in self.npc_manager.npcs.items():
+            if entity_name in npc.name.lower():
+                # Check if this NPC is already in our results (from an area)
+                if not any(e["type"] == "NPC" and e["name"] == npc.name for e in found_entities):
+                    # NPC not in an area, add with unknown location
+                    found_entities.append({
+                        "type": "NPC",
+                        "name": npc.name,
+                        "area": "Unknown (not in any area)",
+                        "rel_coords": "Unknown",
+                        "global_coords": (npc.coordinates.x, npc.coordinates.y, npc.coordinates.z) if hasattr(npc, 'coordinates') else "Unknown",
+                        "activity": npc.current_activity
+                    })
+        
+        # Search for items
+        for area in self.area_manager.areas.values():
+            for item in area.items:
+                if entity_name in item.name.lower():
+                    # Get relative coordinates within the area
+                    rel_x, rel_y, rel_z = area.get_relative_coordinates(item.coordinates)
+                    found_entities.append({
+                        "type": "Item",
+                        "name": item.name,
+                        "area": area.name,
+                        "rel_coords": (rel_x, rel_y, rel_z),
+                        "global_coords": (item.coordinates.x, item.coordinates.y, item.coordinates.z)
+                    })
+        
+        # Search for objects
+        for area in self.area_manager.areas.values():
+            for obj in area.objects:
+                if entity_name in obj.name.lower():
+                    # Get relative coordinates within the area
+                    rel_x, rel_y, rel_z = area.get_relative_coordinates(obj.coordinates)
+                    found_entities.append({
+                        "type": "Object",
+                        "name": obj.name,
+                        "area": area.name,
+                        "rel_coords": (rel_x, rel_y, rel_z),
+                        "global_coords": (obj.coordinates.x, obj.coordinates.y, obj.coordinates.z)
+                    })
+        
+        # Display results
+        if found_entities:
+            # If there's an exact match, prioritize it
+            exact_matches = [e for e in found_entities if e["name"].lower() == entity_name]
+            if exact_matches:
+                found_entities = exact_matches
+            
+            # If we have multiple matches, show all of them
+            if len(found_entities) > 1:
+                print(f"Found {len(found_entities)} entities matching '{entity_name}':")
+                for i, entity in enumerate(found_entities, 1):
+                    print(f"{i}. {entity['type']} '{entity['name']}' in {entity['area']}")
+                    if entity['rel_coords'] != "Unknown":
+                        print(f"   Area coordinates: {entity['rel_coords']}")
+                    if entity['type'] == 'NPC':
+                        print(f"   Current activity: {entity['activity']}")
+            else:
+                # Just one match, show detailed info
+                entity = found_entities[0]
+                print(f"Found {entity['type']} '{entity['name']}' in {entity['area']}")
+                if entity['rel_coords'] != "Unknown":
+                    print(f"Area coordinates: {entity['rel_coords']}")
+                if entity['global_coords'] != "Unknown":
+                    print(f"Global coordinates: {entity['global_coords']}")
+                if entity['type'] == 'NPC':
+                    print(f"Current activity: {entity['activity']}")
+        else:
+            print(f"Could not find any entity matching '{entity_name}' in the game world.")
     
     def show_help(self):
         """Show help information."""

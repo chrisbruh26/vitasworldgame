@@ -261,10 +261,23 @@ class NPC:
             print("Invalid choice.")
     
     def influence_spending(self, player):
-        """Influence the NPC to spend money at a specific location."""
-        # In a real game, this would interact with a business/economy system
-        print(f"You convince {self.name} to spend money at a business of your choice.")
-        print("(This would affect business values in a full implementation)")
+        """
+        Influence the NPC to spend money at a specific location.
+        
+        # VITA'S INFLUENCE: This method allows Vita to influence NPCs to spend money
+        """
+        # Set the NPC as influenced by the player
+        self.influence_level += 1
+        self.set_property("likes_shopping", True)
+        
+        # If NPC is in a location with items, they'll consider purchasing them
+        if self.location and hasattr(self.location, 'items') and self.location.items:
+            print(f"You convince {self.name} to shop at {self.location.name}.")
+            # Increased chance of purchase when influenced
+            self.check_nearby_items(self.location, player, purchase_chance=70)
+        else:
+            print(f"You convince {self.name} to spend money at a business of your choice.")
+            print("They'll be more likely to purchase items when they're near a shop.")
         
         # Relationship adjustment
         self.adjust_relationship(player, -2)  # Slight negative for manipulation
@@ -296,6 +309,78 @@ class NPC:
             self.inventory.remove(item)
             return item
         return None
+        
+    def consider_purchase(self, item, player=None, chance=40):
+        """
+        NPC considers purchasing an item based on a chance percentage.
+        
+        # NPC PURCHASING: This method handles NPCs buying items
+        
+        Args:
+            item: The item to consider purchasing
+            player: The player who will receive money if influenced
+            chance: Percentage chance (0-100) that NPC will purchase
+            
+        Returns:
+            bool: True if purchase was made, False otherwise
+        """
+        # Check if NPC has enough money
+        if self.money < item.value:
+            return False
+            
+        # Determine if NPC will purchase based on chance
+        if random.randint(1, 100) <= chance:
+            # Purchase the item
+            self.money -= item.value
+            self.add_to_inventory(item)
+            
+            # If player is influencing this purchase, they get the money
+            if player and self.influence_level > 0:
+                player.money += item.value
+                print(f"{self.name} purchased {item.name} for ${item.value}. The money goes to you!")
+                return True
+            else:
+                print(f"{self.name} purchased {item.name} for ${item.value}.")
+                return True
+                
+        return False
+        
+    def check_nearby_items(self, area, player=None, purchase_chance=40):
+        """
+        Check for items in the NPC's current area and consider purchasing them.
+        
+        Args:
+            area: The area to check for items
+            player: The player who will receive money if influenced
+            purchase_chance: Chance of purchasing an item
+        """
+        if not area or not hasattr(area, 'items') or not area.items:
+            return
+            
+        # Get the NPC's position in the area
+        if hasattr(self, 'coordinates') and hasattr(area, 'get_relative_coordinates'):
+            rel_x, rel_y, rel_z = area.get_relative_coordinates(self.coordinates)
+        else:
+            # If coordinates aren't available, assume NPC can see all items
+            rel_x, rel_y, rel_z = None, None, None
+            
+        # Check each item in the area
+        for item in list(area.items):  # Create a copy of the list to avoid modification issues
+            # If we have coordinates, only consider items that are nearby (within 2 grid spaces)
+            if rel_x is not None and hasattr(item, 'coordinates'):
+                item_rel_x, item_rel_y, item_rel_z = area.get_relative_coordinates(item.coordinates)
+                distance = ((rel_x - item_rel_x) ** 2 + (rel_y - item_rel_y) ** 2) ** 0.5
+                if distance > 2:  # Only consider items within 2 grid spaces
+                    continue
+                    
+            # Check if the item is clothing and the NPC is interested
+            if hasattr(item, 'type') and item.type == "Clothing" and self.get_property("likes_shopping", False):
+                # Try to purchase the item
+                if self.consider_purchase(item, player, purchase_chance):
+                    # If purchased, remove from area
+                    area.remove_item(item.name)
+                    # Only purchase one item at a time
+                    break
     
     def set_relationship(self, entity, value):
         """Set relationship value with another entity (NPC or player)."""
@@ -314,7 +399,7 @@ class NPC:
         """Set the NPC's schedule for a specific time."""
         self.schedule[time] = (activity, location)
     
-    def update_activity(self, current_time):
+    def update_activity(self, current_time, player=None):
         """Update the NPC's activity based on the current time."""
         # Find the closest scheduled time
         scheduled_times = sorted(self.schedule.keys())
@@ -330,6 +415,12 @@ class NPC:
         self.current_activity = current_activity
         if current_location and current_location != self.location:
             self.set_location(current_location)
+            
+        # If NPC likes shopping and is in a location with items, consider purchasing
+        if self.get_property("likes_shopping", False) and self.location:
+            # NPCs influenced by the player have a higher chance of purchasing
+            purchase_chance = 70 if self.influence_level > 0 else 40
+            self.check_nearby_items(self.location, player, purchase_chance)
     
     def set_property(self, key, value):
         """Set a custom property for this NPC."""
@@ -431,10 +522,10 @@ class NPCManager:
         
         return npc
     
-    def update_all_npcs(self, current_time):
+    def update_all_npcs(self, current_time, player=None):
         """Update all NPCs based on the current time."""
         for npc in self.npcs.values():
-            npc.update_activity(current_time)
+            npc.update_activity(current_time, player)
     
     def save_to_json(self, filename):
         """Save all NPCs to a JSON file."""

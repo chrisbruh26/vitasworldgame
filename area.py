@@ -45,7 +45,11 @@ class Area:
             area.connections[reverse_directions[direction]] = self
 
     def add_item(self, item):
-        """Add an item to the area."""
+        """
+        Add an item to the area.
+        
+        # ITEM MANAGEMENT: This method adds items to an area
+        """
         self.items.append(item)
         
         # If the item has coordinates, also add it to the grid
@@ -69,7 +73,11 @@ class Area:
         return None
     
     def add_npc(self, npc):
-        """Add an NPC to the area."""
+        """
+        Add an NPC to the area.
+        
+        # NPC MANAGEMENT: This method adds NPCs to an area
+        """
         self.npcs.append(npc)
         npc.location = self
         
@@ -92,7 +100,11 @@ class Area:
             npc.location = None
     
     def add_object(self, obj):
-        """Add an object to the area."""
+        """
+        Add an object to the area.
+        
+        # OBJECT MANAGEMENT: This method adds game objects to an area
+        """
         self.objects.append(obj)
         
         # If the object has coordinates, also add it to the grid
