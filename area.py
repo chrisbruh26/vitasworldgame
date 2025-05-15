@@ -1,27 +1,36 @@
+"""
+Area module for Vita Game.
+Handles game world areas and their connections.
+"""
+
+import json
+import inspect
 from .coordinates import Coordinates
-from .items import Item
 
 class Area:
     """Area class representing different locations in the game world."""
-    def __init__(self, name, description, coordinates=None, height=1, grid_width=10, grid_length=10):
+    def __init__(self, name, description, coordinates=None, height=1, grid_width=10, grid_length=10, 
+                 weather="clear", time_of_day="day", properties=None):
         self.name = name
         self.description = description
         self.coordinates = coordinates if coordinates else Coordinates(0, 0, 0)
         self.height = height  # How tall this area is (for buildings)
         self.grid_width = grid_width  # Width of the area grid (x-axis)
         self.grid_length = grid_length  # Length of the area grid (y-axis)
-        self.connections = {}
-        self.items = []
-        self.npcs = []
-        self.objects = []
+        self.connections = {}  # Direction -> Area connections
+        self.items = []  # Items in the area
+        self.npcs = []  # NPCs in the area
+        self.objects = []  # Game objects in the area
         # Dictionary to store objects by their coordinates within the area
         # Format: {(x, y, z): [list of objects at this position]}
         self.grid_objects = {}
         # Area-specific properties
-        self.properties = {}
+        self.properties = properties or {}
         # Weather and time of day
-        self.weather = "clear"
-        self.time_of_day = "day"
+        self.weather = weather
+        self.time_of_day = time_of_day
+        # Area ID for reference in connections
+        self.id = f"{name.lower().replace(' ', '_')}"
 
     def add_connection(self, direction, area):
         """Add a connection to another area."""
@@ -127,12 +136,14 @@ class Area:
             self.grid_objects[grid_key].append(obj)
             
             # Add to appropriate list based on object type
-            if hasattr(obj, '__class__') and obj.__class__.__name__ == 'Item' and obj not in self.items:
+            # Check if object is an Item by looking at its class hierarchy
+            if hasattr(obj, 'pickupable') and obj not in self.items:
+                # If it has a 'pickupable' attribute, it's an item
                 self.items.append(obj)
             elif hasattr(obj, '__class__') and obj.__class__.__name__ == 'NPC' and obj not in self.npcs:
                 self.npcs.append(obj)
                 obj.location = self
-            elif hasattr(obj, '__class__') and obj.__class__.__name__ == 'GameObject' and obj not in self.objects:
+            elif hasattr(obj, '__class__') and obj.__class__.__name__ in ['GameObject', 'Transport', 'Elevator', 'Vehicle', 'Door'] and obj not in self.objects:
                 self.objects.append(obj)
                 
             return True
@@ -183,20 +194,21 @@ class Area:
     def to_dict(self):
         """Convert area to dictionary for serialization."""
         return {
+            "id": self.id,
             "name": self.name,
             "description": self.description,
             "coordinates": self.coordinates.to_dict(),
             "height": self.height,
             "grid_width": self.grid_width,
             "grid_length": self.grid_length,
-            "connections": {k: v.name for k, v in self.connections.items()},  # Just store names, resolve later
+            "connections": {k: v.id for k, v in self.connections.items()},  # Store area IDs
             "properties": self.properties,
             "weather": self.weather,
             "time_of_day": self.time_of_day
         }
     
     @classmethod
-    def from_dict(cls, data, item_resolver=None, npc_resolver=None):
+    def from_dict(cls, data, area_resolver=None):
         """Create area from dictionary."""
         area = cls(
             data["name"],
@@ -204,22 +216,30 @@ class Area:
             Coordinates.from_dict(data["coordinates"]),
             data["height"],
             data["grid_width"],
-            data["grid_length"]
+            data["grid_length"],
+            data["weather"],
+            data["time_of_day"],
+            data["properties"]
         )
-        area.properties = data["properties"]
-        area.weather = data["weather"]
-        area.time_of_day = data["time_of_day"]
+        area.id = data.get("id", area.id)
         
         # Connections need to be resolved after all areas are created
         # This would be handled by a game loader
+        if area_resolver and "connections" in data:
+            for direction, area_id in data["connections"].items():
+                connected_area = area_resolver(area_id)
+                if connected_area:
+                    area.connections[direction] = connected_area
         
         return area
 
 
 class Building(Area):
     """A special type of area that represents a building with multiple floors."""
-    def __init__(self, name, description, coordinates=None, num_floors=1, **kwargs):
-        super().__init__(name, description, coordinates, **kwargs)
+    def __init__(self, name, description, coordinates=None, num_floors=1, height=1, grid_width=10, grid_length=10, 
+                 weather="clear", time_of_day="day", properties=None):
+        super().__init__(name, description, coordinates, height, grid_width, grid_length, 
+                         weather, time_of_day, properties)
         self.num_floors = num_floors
         self.floors = {}  # Dictionary mapping floor numbers to areas
         
@@ -241,104 +261,130 @@ class Building(Area):
         """Convert building to dictionary for serialization."""
         data = super().to_dict()
         data["num_floors"] = self.num_floors
-        data["floors"] = {k: v.name for k, v in self.floors.items()}  # Just store names, resolve later
+        data["floors"] = {k: v.id for k, v in self.floors.items()}  # Store area IDs
         return data
+    
+    @classmethod
+    def from_dict(cls, data, area_resolver=None):
+        """Create building from dictionary."""
+        building = super().from_dict(data, area_resolver)
+        building.num_floors = data.get("num_floors", 1)
+        
+        # Floors need to be resolved after all areas are created
+        if area_resolver and "floors" in data:
+            for floor_num, area_id in data["floors"].items():
+                floor_area = area_resolver(area_id)
+                if floor_area:
+                    building.floors[int(floor_num)] = floor_area
+        
+        return building
 
 
-# Factory function to create areas from templates
-def create_area_from_template(template_name, **kwargs):
-    """Create an area from a predefined template with optional overrides."""
-    templates = {
-        "park": {
-            "class": Area,
-            "name": "Park",
-            "description": "A beautiful park with trees, some low hills, and a fountain.",
-            "coordinates": Coordinates(0, 0, 0),
-            "grid_width": 15,
-            "grid_length": 15,
-            "weather": "sunny",
-            "time_of_day": "day"
-        },
-        "house": {
-            "class": Area,
-            "name": "House",
-            "description": "A cozy little house with a small garden.",
-            "coordinates": Coordinates(0, 10, 0),
-            "height": 2,
-            "grid_width": 8,
-            "grid_length": 8
-        },
-        "street": {
-            "class": Area,
-            "name": "Street",
-            "description": "A busy street with shops and cafes.",
-            "coordinates": Coordinates(10, 0, 0),
-            "grid_width": 20,
-            "grid_length": 5
-        },
-        "skyscraper": {
-            "class": Building,
-            "name": "Skyscraper",
-            "description": "A tall skyscraper with many floors.",
-            "coordinates": Coordinates(20, 20, 0),
-            "num_floors": 50,
-            "height": 50,
-            "grid_width": 10,
-            "grid_length": 10
-        },
-        "mall": {
-            "class": Building,
-            "name": "Shopping Mall",
-            "description": "A large shopping mall with multiple stores.",
-            "coordinates": Coordinates(30, 30, 0),
-            "num_floors": 3,
-            "height": 10,
-            "grid_width": 30,
-            "grid_length": 30
-        },
-        "airport": {
-            "class": Area,
-            "name": "Airport",
-            "description": "A busy airport with planes and helicopters.",
-            "coordinates": Coordinates(50, 50, 0),
-            "grid_width": 50,
-            "grid_length": 50
-        },
-        "farm": {
-            "class": Area,
-            "name": "Farm",
-            "description": "A peaceful farm with crops and animals.",
-            "coordinates": Coordinates(-20, -20, 0),
-            "grid_width": 30,
-            "grid_length": 30,
-            "weather": "clear"
-        },
-        "casino": {
-            "class": Area,
-            "name": "Casino",
-            "description": "A flashy casino full of games and opportunities to win or lose money.",
-            "coordinates": Coordinates(40, 10, 0),
-            "grid_width": 20,
-            "grid_length": 20,
-            "time_of_day": "night"
-        }
-    }
+class AreaManager:
+    """Manages all areas in the game world."""
+    def __init__(self):
+        self.areas = {}  # Dictionary mapping area IDs to Area objects
+        self.templates = {}  # Dictionary mapping template IDs to template data
+        
+    def add_area(self, area):
+        """Add an area to the manager."""
+        self.areas[area.id] = area
+        
+    def get_area(self, area_id):
+        """Get an area by ID."""
+        return self.areas.get(area_id)
     
-    if template_name not in templates:
-        raise ValueError(f"Unknown area template: {template_name}")
+    def connect_areas(self, area1_id, direction, area2_id):
+        """Connect two areas in the specified direction."""
+        area1 = self.get_area(area1_id)
+        area2 = self.get_area(area2_id)
+        if area1 and area2:
+            area1.add_connection(direction, area2)
+            return True
+        return False
     
-    template = templates[template_name].copy()
-    area_class = template.pop("class")
+    def create_area_from_template(self, template_id, coordinates=None, custom_name=None, custom_description=None, properties=None):
+        """Create an area from a template."""
+        if template_id not in self.templates:
+            print(f"Template '{template_id}' not found.")
+            return None
+            
+        template = self.templates[template_id]
+        area_type = template.get("type", "Area")
+        
+        # Set coordinates if provided, otherwise use default (0,0,0)
+        coords = coordinates if coordinates else Coordinates(0, 0, 0)
+        
+        # Use custom name/description if provided, otherwise use template values
+        name = custom_name if custom_name else template.get("name", "Unnamed Area")
+        description = custom_description if custom_description else template.get("description", "No description.")
+        
+        # Merge template properties with custom properties
+        merged_properties = template.get("properties", {}).copy()
+        if properties:
+            merged_properties.update(properties)
+            
+        if area_type == "Building":
+            area = Building(
+                name,
+                description,
+                coords,
+                template.get("num_floors", 1),
+                template.get("height", 1),
+                template.get("grid_width", 10),
+                template.get("grid_length", 10),
+                template.get("weather", "clear"),
+                template.get("time_of_day", "day"),
+                merged_properties
+            )
+        else:
+            area = Area(
+                name,
+                description,
+                coords,
+                template.get("height", 1),
+                template.get("grid_width", 10),
+                template.get("grid_length", 10),
+                template.get("weather", "clear"),
+                template.get("time_of_day", "day"),
+                merged_properties
+            )
+            
+        # Add the area to the manager
+        self.add_area(area)
+        return area
+        
+    def save_to_json(self, filename):
+        """Save all areas to a JSON file."""
+        data = {area_id: area.to_dict() for area_id, area in self.areas.items()}
+        with open(filename, 'w') as f:
+            json.dump(data, f, indent=4)
     
-    # Handle coordinates specially
-    if "coordinates" in template and isinstance(template["coordinates"], Coordinates):
-        coords = template.pop("coordinates")
-        if "coordinates" in kwargs:
-            # Use provided coordinates
-            coords = kwargs.pop("coordinates")
-        template["coordinates"] = coords
-    
-    # Override template values with provided kwargs
-    template.update(kwargs)
-    
-    return area_class(**template)
+    def load_from_json(self, filename):
+        """Load areas from a JSON file."""
+        with open(filename, 'r') as f:
+            data = json.load(f)
+        
+        # First pass: Create all areas
+        for area_id, area_data in data.items():
+            if area_data.get("num_floors", 0) > 0:
+                area = Building.from_dict(area_data)
+            else:
+                area = Area.from_dict(area_data)
+            self.add_area(area)
+        
+        # Second pass: Resolve connections
+        for area_id, area_data in data.items():
+            area = self.get_area(area_id)
+            if "connections" in area_data:
+                for direction, connected_area_id in area_data["connections"].items():
+                    connected_area = self.get_area(connected_area_id)
+                    if connected_area:
+                        area.connections[direction] = connected_area
+            
+            # Resolve building floors
+            if isinstance(area, Building) and "floors" in area_data:
+                for floor_num, floor_area_id in area_data["floors"].items():
+                    floor_area = self.get_area(floor_area_id)
+                    if floor_area:
+                        area.floors[int(floor_num)] = floor_area

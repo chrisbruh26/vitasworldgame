@@ -1,3 +1,8 @@
+"""
+Coordinates module for Vita Game.
+Handles position and location in the 3D game world.
+"""
+
 class Coordinates:
     """Represents a position in the 3D game world."""
     def __init__(self, x=0, y=0, z=0):

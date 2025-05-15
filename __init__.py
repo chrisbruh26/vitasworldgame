@@ -1,1 +1,1 @@
-# This file makes the game_modules directory a Python package
+# This file makes the modules directory a Python package

@@ -1,9 +1,15 @@
+"""
+Items module for Vita Game.
+Handles all items that can be picked up, used, or interacted with.
+"""
+
+import json
 from .coordinates import Coordinates
 
 class Item:
-    """Item class representing items in the game world."""
+    """Base class for all items in the game."""
     def __init__(self, name, description, coordinates=None, edible=False, nutrition=0, 
-                 pickupable=True, value=0, effects=None):
+                 pickupable=True, value=0, effects=None, properties=None):
         self.name = name
         self.description = description
         self.coordinates = coordinates if coordinates else Coordinates(0, 0, 0)
@@ -12,6 +18,12 @@ class Item:
         self.pickupable = pickupable  # Can the player pick this up?
         self.value = value  # Monetary value (for buying/selling)
         self.effects = effects or {}  # Dictionary of effects when used/consumed
+        self.properties = properties or {}  # Custom properties
+        self.id = f"item_{name.lower().replace(' ', '_')}"
+        
+        # Ensure all items are pickupable by default unless explicitly set to False
+        if not hasattr(self, 'pickupable'):
+            self.pickupable = True
     
     def __str__(self):
         return self.name
@@ -29,9 +41,18 @@ class Item:
                 player.street_cred += effect_value
                 print(f"Your street cred {'increased' if effect_value > 0 else 'decreased'} by {abs(effect_value)}.")
     
+    def set_property(self, key, value):
+        """Set a custom property for this item."""
+        self.properties[key] = value
+    
+    def get_property(self, key, default=None):
+        """Get a custom property for this item."""
+        return self.properties.get(key, default)
+    
     def to_dict(self):
         """Convert item to dictionary for serialization."""
         return {
+            "id": self.id,
             "type": self.__class__.__name__,
             "name": self.name,
             "description": self.description,
@@ -40,7 +61,8 @@ class Item:
             "nutrition": self.nutrition,
             "pickupable": self.pickupable,
             "value": self.value,
-            "effects": self.effects
+            "effects": self.effects,
+            "properties": self.properties
         }
     
     @classmethod
@@ -54,15 +76,25 @@ class Item:
             data["nutrition"],
             data["pickupable"],
             data["value"],
-            data["effects"]
+            data["effects"],
+            data["properties"]
         )
+        item.id = data.get("id", item.id)
         return item
 
 
 class Food(Item):
     """Food item that can be eaten."""
-    def __init__(self, name, description, nutrition=10, effects=None):
-        super().__init__(name, description, edible=True, nutrition=nutrition, effects=effects)
+    def __init__(self, name, description, nutrition=10, effects=None, value=5, properties=None):
+        super().__init__(
+            name, 
+            description, 
+            edible=True, 
+            nutrition=nutrition, 
+            value=value,
+            effects=effects,
+            properties=properties
+        )
     
     def effect(self, player):
         """Apply special effect when eaten."""
@@ -76,10 +108,18 @@ class Food(Item):
 
 
 class Jetpack(Item):
-    """JetPack class representing the jetpack object."""
+    """Jetpack class representing the jetpack object."""
     def __init__(self, name="Jetpack", description="A high-tech jetpack that allows you to fly.", 
-                 fuel=100, max_fuel=100, fuel_efficiency=1.0):
-        super().__init__(name, description)
+                 fuel=100, max_fuel=100, fuel_efficiency=1.0, value=500, properties=None):
+        super().__init__(
+            name, 
+            description, 
+            pickupable=True,  # Jetpacks are always pickupable
+            value=value,
+            properties=properties
+        )
+        # Ensure pickupable is always True for jetpacks
+        self.pickupable = True
         self.fuel = fuel
         self.max_fuel = max_fuel
         self.fuel_efficiency = fuel_efficiency  # Lower values mean more efficient
@@ -88,13 +128,21 @@ class Jetpack(Item):
         """Activate the jetpack for the player."""
         if self.fuel > 0:
             player.is_flying = True
+            print(f"You activate the {self.name} and start flying!")
             return True
+        print(f"The {self.name} is out of fuel!")
         return False
+    
+    def deactivate(self, player):
+        """Deactivate the jetpack."""
+        if player.is_flying:
+            player.is_flying = False
+            print(f"You deactivate the {self.name} and land gently.")
     
     def refuel(self, amount=100):
         """Refuel the jetpack."""
         self.fuel = min(self.max_fuel, self.fuel + amount)
-        print(f"Jetpack refueled to {self.fuel}%")
+        print(f"{self.name} refueled to {self.fuel}%")
     
     def __str__(self):
         return f"{self.name} (Fuel: {self.fuel}%)"
@@ -117,8 +165,11 @@ class Jetpack(Item):
             data["description"],
             data["fuel"],
             data["max_fuel"],
-            data["fuel_efficiency"]
+            data["fuel_efficiency"],
+            data.get("value", 500),
+            data.get("properties", {})
         )
+        jetpack.id = data.get("id", jetpack.id)
         return jetpack
 
 
@@ -144,113 +195,120 @@ class Money(Item):
         return cls(data["amount"])
 
 
-class Vehicle(Item):
-    """Base class for vehicles that can be driven."""
-    def __init__(self, name, description, speed=1, fuel=100, max_fuel=100):
-        super().__init__(name, description, pickupable=False)
-        self.speed = speed  # Movement multiplier
-        self.fuel = fuel
-        self.max_fuel = max_fuel
-    
-    def drive(self, player, direction, distance=1):
-        """Drive the vehicle in a direction."""
-        if self.fuel <= 0:
-            print(f"The {self.name} is out of fuel!")
-            return False
-        
-        # Consume fuel
-        fuel_used = distance / self.speed
-        self.fuel -= fuel_used
-        if self.fuel < 0:
-            self.fuel = 0
-        
-        print(f"You drive the {self.name} {direction}.")
-        # The actual movement logic would be handled by the player or game engine
-        return True
-    
-    def refuel(self, amount=100):
-        """Refuel the vehicle."""
-        self.fuel = min(self.max_fuel, self.fuel + amount)
-        print(f"{self.name} refueled to {self.fuel}%")
+class CraftingIngredient(Item):
+    """An item that can be used in crafting recipes."""
+    def __init__(self, name, description, ingredient_type, value=5, properties=None):
+        super().__init__(
+            name, 
+            description, 
+            pickupable=True,
+            value=value,
+            properties=properties
+        )
+        self.ingredient_type = ingredient_type  # e.g., "metal", "wood", "fabric"
     
     def to_dict(self):
-        """Convert vehicle to dictionary for serialization."""
+        """Convert crafting ingredient to dictionary for serialization."""
         data = super().to_dict()
-        data.update({
-            "speed": self.speed,
-            "fuel": self.fuel,
-            "max_fuel": self.max_fuel
-        })
+        data["ingredient_type"] = self.ingredient_type
         return data
     
     @classmethod
     def from_dict(cls, data):
-        """Create vehicle from dictionary."""
-        vehicle = cls(
+        """Create crafting ingredient from dictionary."""
+        ingredient = cls(
             data["name"],
             data["description"],
-            data["speed"],
-            data["fuel"],
-            data["max_fuel"]
+            data["ingredient_type"],
+            data.get("value", 5),
+            data.get("properties", {})
         )
-        return vehicle
+        ingredient.id = data.get("id", ingredient.id)
+        return ingredient
 
 
-# Factory function to create items from templates
-def create_item_from_template(template_name, **kwargs):
-    """Create an item from a predefined template with optional overrides."""
-    templates = {
-        "carrot": {
-            "class": Food,
-            "name": "Carrot",
-            "description": "A fresh orange carrot. Bunnies love these!",
-            "nutrition": 15,
-            "effects": {"energy": 10}
-        },
-        "jetpack": {
-            "class": Jetpack,
-            "name": "Jetpack",
-            "description": "A high-tech jetpack that allows you to fly.",
-            "fuel": 100,
-            "max_fuel": 100,
-            "fuel_efficiency": 1.0
-        },
-        "acorn": {
-            "class": Food,
-            "name": "Acorn",
-            "description": "A small acorn, perfect for planting.",
-            "nutrition": 5,
-            "effects": {"energy": 3}
-        },
-        "golden_acorn": {
-            "class": Food,
-            "name": "Golden Acorn",
-            "description": "A rare golden acorn! It looks valuable.",
-            "nutrition": 20,
-            "effects": {"energy": 15, "street_cred": 5},
-            "value": 50
-        },
-        "dollar": {
-            "class": Money,
-            "amount": 1
-        },
-        "car": {
-            "class": Vehicle,
-            "name": "Car",
-            "description": "A standard car that can be driven around.",
-            "speed": 3,
-            "fuel": 100,
-            "max_fuel": 100
+class ItemManager:
+    """Manages all items in the game."""
+    def __init__(self):
+        self.items = {}  # Dictionary mapping item IDs to Item objects
+        self.templates = {}  # Dictionary of item templates
+    
+    def add_item(self, item):
+        """Add an item to the manager."""
+        self.items[item.id] = item
+    
+    def get_item(self, item_id):
+        """Get an item by ID."""
+        return self.items.get(item_id)
+    
+    def add_template(self, template_id, template_data):
+        """Add an item template."""
+        self.templates[template_id] = template_data
+    
+    def create_from_template(self, template_id, **kwargs):
+        """Create an item from a template."""
+        if template_id not in self.templates:
+            raise ValueError(f"Unknown item template: {template_id}")
+        
+        template = self.templates[template_id].copy()
+        item_type = template.pop("type")
+        
+        # Override template values with provided kwargs
+        template.update(kwargs)
+        
+        # Create the item based on its type
+        if item_type == "Item":
+            item = Item(**template)
+        elif item_type == "Food":
+            item = Food(**template)
+        elif item_type == "Jetpack":
+            item = Jetpack(**template)
+        elif item_type == "Money":
+            item = Money(template.get("amount", 1))
+        elif item_type == "CraftingIngredient":
+            item = CraftingIngredient(**template)
+        else:
+            raise ValueError(f"Unknown item type: {item_type}")
+        
+        # Generate a unique ID if needed
+        if "id" in kwargs:
+            item.id = kwargs["id"]
+        
+        return item
+    
+    def save_to_json(self, filename):
+        """Save all items to a JSON file."""
+        data = {
+            "items": {item_id: item.to_dict() for item_id, item in self.items.items()},
+            "templates": self.templates
         }
-    }
+        with open(filename, 'w') as f:
+            json.dump(data, f, indent=4)
     
-    if template_name not in templates:
-        raise ValueError(f"Unknown item template: {template_name}")
-    
-    template = templates[template_name].copy()
-    item_class = template.pop("class")
-    
-    # Override template values with provided kwargs
-    template.update(kwargs)
-    
-    return item_class(**template)
+    def load_from_json(self, filename):
+        """Load items from a JSON file."""
+        with open(filename, 'r') as f:
+            data = json.load(f)
+        
+        # Load templates
+        self.templates = data.get("templates", {})
+        
+        # Load items
+        for item_id, item_data in data.get("items", {}).items():
+            item_type = item_data.get("type", "Item")
+            
+            if item_type == "Item":
+                item = Item.from_dict(item_data)
+            elif item_type == "Food":
+                item = Food.from_dict(item_data)
+            elif item_type == "Jetpack":
+                item = Jetpack.from_dict(item_data)
+            elif item_type == "Money":
+                item = Money.from_dict(item_data)
+            elif item_type == "CraftingIngredient":
+                item = CraftingIngredient.from_dict(item_data)
+            else:
+                print(f"Warning: Unknown item type {item_type}, creating as generic Item")
+                item = Item.from_dict(item_data)
+            
+            self.add_item(item)
