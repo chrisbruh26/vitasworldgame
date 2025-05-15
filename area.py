@@ -324,6 +324,7 @@ class AreaManager:
         if properties:
             merged_properties.update(properties)
             
+        # Create the appropriate area type based on the template
         if area_type == "Building":
             area = Building(
                 name,
@@ -338,6 +339,11 @@ class AreaManager:
                 merged_properties
             )
         else:
+            # For all other types (Area, Store, etc.), create a standard Area
+            # The type is stored in the properties for specialized behavior
+            if area_type != "Area":
+                merged_properties["area_type"] = area_type
+                
             area = Area(
                 name,
                 description,

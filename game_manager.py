@@ -449,21 +449,21 @@ class GameManager:
         )
         self.npc_manager.add_npc(squirrel)
         
-        # Create a shopkeeper NPC
-        shopkeeper = NPC(
-            "Shopkeeper",
-            "A friendly shopkeeper selling various goods.",
+        # Create a random guy NPC
+        Dave = NPC(
+            "Dave",
+            "An average civilian.",
             dialogue={
-                "default": "Welcome to my shop! Feel free to browse around.",
-                "friendly": "Ah, my favorite customer! What can I get for you today?"
-            },
+                "default": "Whoa, are you the gray bird I've been hearing about?",
+                "friendly": "Sup, gray bird? I mean-uh, your highness?"
+            }, 
             personality={
                 "friendliness": 60,
                 "greed": 40
             },
             money=500
         )
-        self.npc_manager.add_npc(shopkeeper)
+        self.npc_manager.add_npc(Dave)
         
         # Place NPCs in areas
         park = self.area_manager.get_area("park")
@@ -472,7 +472,7 @@ class GameManager:
         
         street = self.area_manager.get_area("street")
         if street:
-            street.place_object_at(shopkeeper, 5, 2)
+            street.place_object_at(Dave, 5, 2)
     
     def create_starting_objects(self):
         """Create the starting objects for the game."""
