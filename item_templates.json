@@ -41,5 +41,48 @@
         "description": "A piece of fabric. Useful for crafting.",
         "ingredient_type": "fabric",
         "value": 5
+    },
+    "T-shirt": {
+        "type": "Clothing",
+        "name": "T-shirt",
+        "description": "A simple cotton T-shirt.",
+        "value": 15
+    },
+    "Skirt": {
+        "type": "Clothing",
+        "name": "Skirt",
+        "description": "A stylish skirt.",
+        "value": 20
+    },
+    "Pants": {
+        "type": "Clothing",
+        "name": "Pants",
+        "description": "A pair of comfortable pants.",
+        "value": 25
+    },
+    "Shoes": {
+        "type": "Clothing",
+        "name": "Shoes",
+        "description": "A pair of stylish shoes.",
+        "value": 30
+    },
+    "Hat": {
+        "type": "Clothing",
+        "name": "Hat",
+        "description": "A fashionable hat.",
+        "value": 12
+    },
+    "Backpack": {
+        "type": "Clothing",
+        "name": "Stylish Backpack",
+        "description": "A cute little backpack with a fuzzy bear on the back. Just to be trendy, not for carrying items.",
+        "capacity": 10,
+        "value": 40
+    },
+    "Headband": {
+        "type": "Clothing",
+        "name": "Stylish Headband",
+        "description": "A trendy headband with a pink bow.",
+        "value": 15
     }
 }
