@@ -89,9 +89,16 @@ VITA GAME HUSTLE IDEAS:
 In /home/reginapinkdog/projects/Game_files/VitaGame_Hustle/modules/npc.py, can you help me modify NPC behaviors to make them fit the hustling theme? The player character, Vita, needs to influence and manipulate NPCs into spending money. She will do this in many different ways, but for now I want to make it fairly simple for proof of concept. She should see NPCs in a store, like Fashion Trends, and use "talk" to interact with them and then "influence" to convince them to spend money. If it works, the game says that that NPC will now spend money at Fashion Trends, but nothing happens. I have a few things we should investigate, and then I would also appreciate your input for what else might help improve it: 1) can NPCs move across the grid? They should be able to walk and do actions autonomously, like pick up items and place in their inventory, and spend money (the game should subtract money from the NPC, thereby allowing them to purchase an item they picked up), and react to chaos that Vita (or other NPCs) cause. 2) is the NPC schedule system interfering, and is it necessary? I'm creating the hustle version based on the original, so idk if I should remove the schedule system and redo NPC behavior to make them more likely to shop. Or maybe we modify the behavior schedule to work in a LOT of money spending into NPC routines. What do you think? How can we change it to work better? 3) NPCs should be listed as civilians, but I noticed they were shown as "shoppers" when I was in Fashion Trends. This may make sense as they're in a store, but they were only idle, not actually shopping yet, and I want to optimize for clarity. 
 
 
+I realized what I need to do it start from scratch because I tried to build a new game off of an existing game that wasn't very template-like. That may be the issue, since I don't know how to change all the features from the base game to match my desired structure for this version. Can you help me create a new game, using this one as a model, while keeping the core hustle-themed elements in mind? 
+
 These are the absolute top priorities:
-[vitasworld.us]
+* areas - shop and park, with a connection between (to ensure travel works) 
+* player basics - move (left/west, right/east, etc), fast travel, (teleport/tp to areas or coords), pick up & drop items, money attr defined, commands "look", "inventory", "where" (to locate entities such as NPCs and items)
+* NPc autonomy - pick up & drop items, incrementally move across grid (e.g, from 0,0 to 0,1, to 0,2 etc) AND teleport only when necessary (to get across an area for an item), but generally move incrementally. NPC should never leave the grid while in the area, instead coordinates should update like the player
+* NPCs should be able to "look around" and notice items in the area. If they find an item near them, there's a chance that they will pick it up, and if it's too far to reach (> 2 spots), they may choose to move themselves to it and pick it up.
 
-
-
-
+Testing methods:
+* items, NPCs, objects, and areas hardcoded (for now!)
+* items on the floor near the NPCs should be next to the NPC so that we can see if the NPC picks it up.
+* Once successful, we will move the items farther from the NPC and see if they can teleport themselves to it.
+* Once all of this has been completed, we can add a money system, like subtracting money from NPCs when they pick up an item. 
