@@ -77,5 +77,16 @@ VITA GAME HUSTLE IDEAS:
 * hack phones, targeted ads takes a new meaning when Vita targets specific NPCs to see ads for businesses she's invested in
 
 
+* need structures to be placed on the grid for her to interact with - place posters, signs, etc on walls, electrical poles, or anything else in a city that she might be able to use for gray bird messages, or specific brand advertisement. Billboards too
+
+* advertisements should be a specific item subclass
+
+* make sure NPCs can move across the grid
+* do not list them as shoppers, maybe just civilians by default 
+
+
+
+In /home/reginapinkdog/projects/Game_files/VitaGame_Hustle/modules/npc.py, can you help me modify NPC behaviors to make them fit the hustling theme? The player character, Vita, needs to influence and manipulate NPCs into spending money. She will do this in many different ways, but for now I want to make it fairly simple for proof of concept. She should see NPCs in a store, like Fashion Trends, and use "talk" to interact with them and then "influence" to convince them to spend money. If it works, the game says that that NPC will now spend money at Fashion Trends, but nothing happens. I have a few things we should investigate, and then I would also appreciate your input for what else might help improve it: 1) can NPCs move across the grid? They should be able to walk and do actions autonomously, like pick up items and place in their inventory, and spend money (the game should subtract money from the NPC, thereby allowing them to purchase an item they picked up), and react to chaos that Vita (or other NPCs) cause. 2) is the NPC schedule system interfering, and is it necessary? I'm creating the hustle version based on the original, so idk if I should remove the schedule system and redo NPC behavior to make them more likely to shop. Or maybe we modify the behavior schedule to work in a LOT of money spending into NPC routines. What do you think? How can we change it to work better? 3) NPCs should be listed as civilians, but I noticed they were shown as "shoppers" when I was in Fashion Trends. This may make sense as they're in a store, but they were only idle, not actually shopping yet, and I want to optimize for clarity. I also saw something like "shopper 1 is looking for thi
+
 
 
