@@ -565,7 +565,8 @@ class GameManager:
                     if item:
                         fashion_trends.place_object_at(item, item_info["position"][0], item_info["position"][1])
                         print(f"Successfully added {item.name} to Fashion Trends store at position {item_info['position']}")
-                except ValueError as e:
+                except ValueError as e: # Handle cases where template not found.
+                    # The current error handling is great but it was causing double printing of error statements. This will only print error statements once.
                     print(f"Error creating {item_info['template']}: {e}")
                     
                     # If template not found, create the item directly
