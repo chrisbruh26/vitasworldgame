@@ -1,0 +1,278 @@
+{
+    "park": {
+        "type": "Area",
+        "name": "Park",
+        "description": "A peaceful park with trees and benches.",
+        "grid_width": 10,
+        "grid_length": 10,
+        "weather": "sunny",
+        "properties": {
+            "public": true,
+            "foot_traffic": "medium"
+        }
+    },
+    "street": {
+        "type": "Area",
+        "name": "Street",
+        "description": "A busy city street with shops and traffic.",
+        "grid_width": 15,
+        "grid_length": 5,
+        "properties": {
+            "public": true,
+            "foot_traffic": "high"
+        }
+    },
+    "suburbs": {
+        "type": "Area",
+        "name": "Suburbs",
+        "description": "A quiet suburban neighborhood with houses.",
+        "grid_width": 20,
+        "grid_length": 10,
+        "properties": {
+            "public": true,
+            "foot_traffic": "low",
+            "residential": true
+        }
+    },
+    "house": {
+        "type": "Area",
+        "name": "House",
+        "description": "A cozy house with basic furnishings.",
+        "grid_width": 5,
+        "grid_length": 5,
+        "properties": {
+            "public": false,
+            "residential": true,
+            "purchasable": true,
+            "purchase_price": 150000,
+            "rental_income": 1500
+        }
+    },
+    "office_building": {
+        "type": "Building",
+        "name": "Office Building",
+        "description": "A tall office building with multiple floors.",
+        "grid_width": 8,
+        "grid_length": 8,
+        "num_floors": 5,
+        "properties": {
+            "public": true,
+            "commercial": true,
+            "purchasable": true,
+            "purchase_price": 2000000,
+            "rental_income": 20000
+        }
+    },
+    "office_floor": {
+        "type": "Area",
+        "name": "Office Floor",
+        "description": "A floor in an office building with cubicles and offices.",
+        "grid_width": 8,
+        "grid_length": 8,
+        "properties": {
+            "public": false,
+            "commercial": true,
+            "purchasable": true,
+            "purchase_price": 400000,
+            "rental_income": 4000
+        }
+    },
+    "apartment_building": {
+        "type": "Building",
+        "name": "Apartment Building",
+        "description": "A multi-story apartment building with various units.",
+        "grid_width": 10,
+        "grid_length": 10,
+        "num_floors": 10,
+        "properties": {
+            "public": true,
+            "residential": true,
+            "purchasable": true,
+            "purchase_price": 5000000,
+            "rental_income": 50000
+        }
+    },
+    "apartment_floor": {
+        "type": "Area",
+        "name": "Apartment Floor",
+        "description": "A floor in an apartment building with various units.",
+        "grid_width": 10,
+        "grid_length": 10,
+        "properties": {
+            "public": true,
+            "residential": true,
+            "purchasable": true,
+            "purchase_price": 500000,
+            "rental_income": 5000
+        }
+    },
+    "apartment_unit": {
+        "type": "Area",
+        "name": "Apartment Unit",
+        "description": "A single apartment unit with basic furnishings.",
+        "grid_width": 5,
+        "grid_length": 5,
+        "properties": {
+            "public": false,
+            "residential": true,
+            "purchasable": true,
+            "purchase_price": 100000,
+            "rental_income": 1000
+        }
+    },
+    "convenience_store": {
+        "type": "Store",
+        "name": "Convenience Store",
+        "description": "A small store selling everyday items.",
+        "grid_width": 5,
+        "grid_length": 5,
+        "properties": {
+            "public": true,
+            "commercial": true,
+            "purchasable": true,
+            "purchase_price": 250000,
+            "business_income": 3000,
+            "stock_symbol": "CNVS"
+        }
+    },
+    "apparel_store": {
+        "type": "Store",
+        "name": "Apparel Store",
+        "description": "A store selling clothing and accessories.",
+        "grid_width": 5,
+        "grid_length": 5,
+        "properties": {
+            "public": true,
+            "commercial": true,
+            "purchasable": true,
+            "purchase_price": 350000,
+            "business_income": 4000,
+            "stock_symbol": "APRL"
+        }
+    },
+    "restaurant": {
+        "type": "Store",
+        "name": "Restaurant",
+        "description": "A restaurant serving various dishes.",
+        "grid_width": 8,
+        "grid_length": 8,
+        "properties": {
+            "public": true,
+            "commercial": true,
+            "purchasable": true,
+            "purchase_price": 500000,
+            "business_income": 6000,
+            "stock_symbol": "REST"
+        }
+    },
+    "cafe": {
+        "type": "Store",
+        "name": "Cafe",
+        "description": "A cozy cafe serving coffee and snacks.",
+        "grid_width": 4,
+        "grid_length": 4,
+        "properties": {
+            "public": true,
+            "commercial": true,
+            "purchasable": true,
+            "purchase_price": 200000,
+            "business_income": 2500,
+            "stock_symbol": "CAFE"
+        }
+    },
+    "tech_company": {
+        "type": "Building",
+        "name": "Tech Company",
+        "description": "A modern building housing a technology company.",
+        "grid_width": 10,
+        "grid_length": 10,
+        "num_floors": 3,
+        "properties": {
+            "public": false,
+            "commercial": true,
+            "purchasable": false,
+            "stock_symbol": "TECH",
+            "stock_price": 150
+        }
+    },
+    "bank": {
+        "type": "Building",
+        "name": "Bank",
+        "description": "A secure building where financial transactions take place.",
+        "grid_width": 7,
+        "grid_length": 7,
+        "properties": {
+            "public": true,
+            "commercial": true,
+            "purchasable": false,
+            "stock_symbol": "BANK",
+            "stock_price": 200
+        }
+    },
+    "mall": {
+        "type": "Building",
+        "name": "Shopping Mall",
+        "description": "A large building with multiple stores and shops.",
+        "grid_width": 20,
+        "grid_length": 20,
+        "num_floors": 3,
+        "properties": {
+            "public": true,
+            "commercial": true,
+            "purchasable": true,
+            "purchase_price": 10000000,
+            "rental_income": 100000,
+            "stock_symbol": "MALL",
+            "stock_price": 75
+        }
+    },
+    "hotel": {
+        "type": "Building",
+        "name": "Hotel",
+        "description": "A luxurious hotel with multiple rooms and amenities.",
+        "grid_width": 15,
+        "grid_length": 15,
+        "num_floors": 10,
+        "properties": {
+            "public": true,
+            "commercial": true,
+            "purchasable": true,
+            "purchase_price": 8000000,
+            "business_income": 80000,
+            "stock_symbol": "HOTL",
+            "stock_price": 120
+        }
+    },
+    "gas_station": {
+        "type": "Store",
+        "name": "Gas Station",
+        "description": "A station selling fuel and convenience items.",
+        "grid_width": 6,
+        "grid_length": 8,
+        "properties": {
+            "public": true,
+            "commercial": true,
+            "purchasable": true,
+            "purchase_price": 450000,
+            "business_income": 5000,
+            "stock_symbol": "FUEL",
+            "stock_price": 85
+        }
+    },
+    "factory": {
+        "type": "Building",
+        "name": "Factory",
+        "description": "An industrial building where goods are manufactured.",
+        "grid_width": 15,
+        "grid_length": 20,
+        "properties": {
+            "public": false,
+            "industrial": true,
+            "purchasable": true,
+            "purchase_price": 3000000,
+            "business_income": 30000,
+            "stock_symbol": "FCTY",
+            "stock_price": 95
+        }
+    }
+}

@@ -1,0 +1,45 @@
+{
+    "carrot": {
+        "type": "Food",
+        "name": "Carrot",
+        "description": "A fresh orange carrot. Good for bunnies!",
+        "nutrition": 15,
+        "effects": {
+            "energy": 10
+        },
+        "value": 5
+    },
+    "apple": {
+        "type": "Food",
+        "name": "Apple",
+        "description": "A juicy red apple.",
+        "nutrition": 20,
+        "effects": {
+            "energy": 15
+        },
+        "value": 8
+    },
+    "jetpack": {
+        "type": "Jetpack",
+        "name": "Jetpack",
+        "description": "A high-tech jetpack that allows you to fly.",
+        "fuel": 100,
+        "max_fuel": 100,
+        "fuel_efficiency": 1.0,
+        "value": 500
+    },
+    "metal_scrap": {
+        "type": "CraftingIngredient",
+        "name": "Metal Scrap",
+        "description": "A piece of scrap metal. Useful for crafting.",
+        "ingredient_type": "metal",
+        "value": 10
+    },
+    "fabric": {
+        "type": "CraftingIngredient",
+        "name": "Fabric",
+        "description": "A piece of fabric. Useful for crafting.",
+        "ingredient_type": "fabric",
+        "value": 5
+    }
+}

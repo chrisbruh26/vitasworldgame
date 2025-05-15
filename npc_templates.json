@@ -1,0 +1,54 @@
+{
+    "squirrel": {
+        "name": "Squirrel",
+        "description": "A bushy-tailed squirrel looking for acorns.",
+        "dialogue": {
+            "default": "Squeak! (He seems to be looking for acorns.)",
+            "friendly": "Squeak squeak! (He seems happy to see you.)"
+        },
+        "personality": {
+            "nervousness": 70,
+            "friendliness": 50
+        },
+        "money": 10
+    },
+    "shopkeeper": {
+        "name": "Shopkeeper",
+        "description": "A friendly shopkeeper selling various goods.",
+        "dialogue": {
+            "default": "Welcome to my shop! Feel free to browse around.",
+            "friendly": "Ah, my favorite customer! What can I get for you today?"
+        },
+        "personality": {
+            "friendliness": 60,
+            "greed": 40
+        },
+        "money": 500
+    },
+    "police_officer": {
+        "name": "Police Officer",
+        "description": "A stern-looking police officer keeping the peace.",
+        "dialogue": {
+            "default": "Move along, citizen. Nothing to see here.",
+            "hostile": "You're causing trouble. I'm keeping my eye on you!"
+        },
+        "personality": {
+            "strictness": 80,
+            "suspicion": 60
+        },
+        "money": 100
+    },
+    "civilian": {
+        "name": "Civilian",
+        "description": "An ordinary citizen going about their day.",
+        "dialogue": {
+            "default": "Hello there!",
+            "friendly": "Nice to see you again!"
+        },
+        "personality": {
+            "friendliness": 50,
+            "curiosity": 40
+        },
+        "money": 50
+    }
+}
