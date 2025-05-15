@@ -64,3 +64,18 @@ Ask the AI what approaches it would take if it were creating this game in other 
 
 
  if you were to recreate my game, what approaches would you take? What would you keep the same and what would you change? Can you create a starting template for me to build on, which streamlines the process for me to continue developing the game? I want it to be set up in a way that makes it easy to add lots of areas and abilities. The player will eventually be able to buy/steal fuel for their jetpack, trespass an airport and steal planes/helicopters, explore and steal from/move items between stores in a mall to cause confusion, explore a farm and eat crops, gamble at a casino, invest money in stocks of certain businesses and have a real chance of the stocks increasing or decreasing in value, influence NPCs to spend money on businesses that the player invested in, and mess with NPCs in other ways. Reactions from NPCs will be a big part of the game. Manipulating NPCs to do things the player wants, and using them to create chaos, should be possible. Please set up starting code, like a template for me to easily build on, using any approach you think will help me implement the ideas I mentioned more easily. It should also be easy to build on/duplicate instances of what I currently have, such as elevators/other transport types, jetpack types, and NPCs (like many similar squirrels).
+
+
+
+VITA GAME HUSTLE IDEAS:
+
+- for proof of concept, talk to NPCs in a store and use "influence" option. This will not be the way to do it going forward as I will want it to be a bit more complex
+- NPCs have items in inventory, as a bunny the player can silently take items out of pockets and purses, drop them on the ground, and get the NPCs attention. Not sure if that will work
+
+* hack billboards, fill with ads for specific stores
+* bribe birds to steal items from NPCs and/or swarm around them, freak them out, chase them into a store. Chances are they will immediately switch to browsing
+* hack phones, targeted ads takes a new meaning when Vita targets specific NPCs to see ads for businesses she's invested in
+
+
+
+
