@@ -8,12 +8,13 @@ from .item import Item
 
 class NPC:
     """NPC class representing non-player characters."""
-    def __init__(self, name, description, start_coords=None, area=None):
+    def __init__(self, name, description, start_coords=None, area=None, money=20):
         self.name = name
         self.description = description
         self.coordinates = start_coords if start_coords else Coordinates(0,0,0) # Global coordinates
         self.location = area # Current Area object
         self.inventory = []
+        self.money = money
         self.id = f"npc_{name.lower().replace(' ', '_')}_{random.randint(1000,9999)}"
         self.action_cooldown = 0 # Simple cooldown to prevent acting every single turn
 
@@ -73,11 +74,22 @@ class NPC:
         """NPC picks up an item from its location."""
         if not self.location: return
         if item in self.location.get_objects_at_grid_cell(grid_x, grid_y):
+            if item.value > 0:
+                if self.money >= item.value:
+                    self.money -= item.value
+                    print(f"{self.name} bought {item.name} for ${item.value}. (Money left: ${self.money})")
+                else:
+                    print(f"{self.name} wants {item.name} (costs ${item.value}), but cannot afford it. (Has ${self.money})")
+                    self.action_cooldown = 3 # Think about it for a bit
+                    return # Cannot pick up
+            else:
+                print(f"{self.name} picked up {item.name} (free).")
+
             self.location.remove_object_from_grid(item, grid_x, grid_y)
             self.inventory.append(item)
             item.coordinates = None # Item is now in inventory
-            print(f"{self.name} picked up {item.name}.")
-            # Future: Subtract money if it's a "purchase"
+            # Message is now conditional based on price
+
 
     def drop_item(self, item_name):
         """NPC drops an item into its current location."""

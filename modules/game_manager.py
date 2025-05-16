@@ -1,3 +1,4 @@
+
 """
 Game Manager module for the game.
 Handles game state, setup, and command processing.
@@ -39,37 +40,37 @@ class GameManager:
 
         # Create Items
         # Item1: Near NPC1 in Park
-        red_ball = Item(name="Red Ball", description="A bouncy red ball.", coordinates=park.get_global_coordinates(3,3))
+        red_ball = Item(name="Red Ball", description="A bouncy red ball.", value=5, coordinates=park.get_global_coordinates(3,3))
         park.add_object_to_grid(red_ball, 3, 3)
         self.item_manager.items_master_list[red_ball.id] = red_ball
 
         # Item2: Also near NPC1 in Park, but one step further
-        blue_cube = Item(name="Blue Cube", description="A smooth blue cube.", coordinates=park.get_global_coordinates(3,4))
+        blue_cube = Item(name="Blue Cube", description="A smooth blue cube.", value=10, coordinates=park.get_global_coordinates(3,4))
         park.add_object_to_grid(blue_cube, 3, 4)
         self.item_manager.items_master_list[blue_cube.id] = blue_cube
 
         # Item3: Far from NPC2 in Park
-        green_pyramid = Item(name="Green Pyramid", description="A shiny green pyramid.", coordinates=park.get_global_coordinates(8,8))
+        green_pyramid = Item(name="Green Pyramid", description="A shiny green pyramid.", value=15, coordinates=park.get_global_coordinates(8,8))
         park.add_object_to_grid(green_pyramid, 8, 8)
         self.item_manager.items_master_list[green_pyramid.id] = green_pyramid
 
         # Item4: In the shop
-        apple = Item(name="Apple", description="A juicy red apple.", coordinates=shop.get_global_coordinates(2,2))
+        apple = Item(name="Apple", description="A juicy red apple.", value=2, coordinates=shop.get_global_coordinates(2,2))
         shop.add_object_to_grid(apple, 2,2)
         self.item_manager.items_master_list[apple.id] = apple
 
 
         # Create NPCs
-        # NPC1: Near Item1 and Item2 in Park
-        robo_coords = park.get_global_coordinates(3,2)
-        robo = NPC(name="Robo", description="A small, curious robot.", start_coords=robo_coords, area=park)
+        # NPC1: Near Item1 and Item2 in Park, has some money
+        robo_coords = park.get_global_coordinates(3,2) # Robo starts at (3,2)
+        robo = NPC(name="Robo", description="A small, curious robot.", start_coords=robo_coords, area=park, money=25)
         # robo.set_location(park, 3, 2) # This is now handled by add_object_to_grid if area is passed to NPC constructor
         park.add_object_to_grid(robo, 3, 2)
         self.npc_manager.add_npc(robo)
 
         # NPC2: Far from Item3 in Park
         zippy_coords = park.get_global_coordinates(1,8)
-        zippy = NPC(name="Zippy", description="A fast-moving drone.", start_coords=zippy_coords, area=park)
+        zippy = NPC(name="Zippy", description="A fast-moving drone.", start_coords=zippy_coords, area=park, money=10) # Zippy has less money
         # zippy.set_location(park, 1, 8)
         park.add_object_to_grid(zippy, 1, 8)
         self.npc_manager.add_npc(zippy)
