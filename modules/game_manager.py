@@ -52,7 +52,7 @@ class GameManager:
         green_pyramid = Item(name="Green Pyramid", description="A shiny green pyramid.", coordinates=park.get_global_coordinates(8,8))
         park.add_object_to_grid(green_pyramid, 8, 8)
         self.item_manager.items_master_list[green_pyramid.id] = green_pyramid
-        
+
         # Item4: In the shop
         apple = Item(name="Apple", description="A juicy red apple.", coordinates=shop.get_global_coordinates(2,2))
         shop.add_object_to_grid(apple, 2,2)

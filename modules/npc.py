@@ -67,7 +67,7 @@ class NPC:
             current_gx, current_gy = self.get_grid_position()
             self.location.remove_object_from_grid(self, current_gx, current_gy)
             self.location.add_object_to_grid(self, target_gx, target_gy)
-            print(f"{self.name} teleported to ({target_gx}, {target_gy}) in {self.location.name}.")
+            print(f"{self.name} spotted something and ran to ({target_gx}, {target_gy}).")
 
     def pick_up_item(self, item, grid_x, grid_y):
         """NPC picks up an item from its location."""
@@ -112,8 +112,8 @@ class NPC:
 
             item_gx, item_gy = self.location.get_relative_coordinates(item_obj.coordinates)[:2]
             dist = abs(my_gx - item_gx) + abs(my_gy - item_gy) # Manhattan distance
-
-            if dist <= 2 and dist > 0: # Nearby, but not on current spot
+            # change item distance max from 2 to 10
+            if dist <= 10 and dist > 0: # Nearby, but not on current spot
                 if random.random() < 0.5: # 50% chance to consider it
                     if dist < min_dist:
                         min_dist = dist
@@ -137,15 +137,15 @@ class NPC:
                 self.move_on_grid(dx,dy)
             elif min_dist > 2: # "Teleport" for items further away
                 self.teleport_to_grid_cell(item_target_pos[0], item_target_pos[1])
-            self.action_cooldown = 1
+            self.action_cooldown = 0
             return
 
         # 3. If no item interaction, random wander
-        if random.random() < 0.3: # 30% chance to wander
+        if random.random() < 0.7: # 30% chance to wander
             dx, dy = random.choice([(0,1), (0,-1), (1,0), (-1,0), (0,0)]) # (0,0) for idle
             if dx !=0 or dy !=0:
                 self.move_on_grid(dx, dy)
-            self.action_cooldown = 3 # Cooldown after wandering
+            self.action_cooldown = 1 # Cooldown after wandering
 
     def update(self):
         """Called each game turn to allow NPC to perform actions."""
