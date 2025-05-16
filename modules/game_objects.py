@@ -608,9 +608,15 @@ class Computer(GameObject):
             choice = input("Enter your choice (1-3): ")
             
             if choice == "1":
-                player.view_properties()
+                if hasattr(player, 'view_properties'):
+                    player.view_properties()
+                else:
+                    print("Property viewing is not implemented for this player type.")
             elif choice == "2":
-                player.collect_property_income()
+                if hasattr(player, 'collect_property_income'):
+                    player.collect_property_income() # Pass current_turn if available
+                else:
+                    print("Property income collection is not implemented for this player type.")
             elif choice == "3":
                 print("Exiting Property Manager Terminal.")
                 break

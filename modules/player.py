@@ -16,6 +16,7 @@ class Player:
         self.coordinates = Coordinates(0, 0, 0) # Global coordinates
         self.money = start_money
         self.stock_portfolio = {} # symbol -> {'shares': int, 'avg_price': float}
+        self.properties_portfolio = {} # property_id -> {'name': str, 'value': float, 'last_collected_turn': int}
 
     def set_current_area(self, area, grid_x=None, grid_y=None):
         """Set the current area for the player and position them on its grid."""
@@ -271,3 +272,22 @@ class Player:
         print(f"Profit/Loss for this transaction: ${total_profit_loss:.2f}")
         print(f"Remaining money: ${self.money:.2f}")
         return True
+
+    def view_properties(self):
+        if not self.properties_portfolio:
+            print("You do not own any properties.")
+            return
+        print("\n--- Your Properties ---")
+        for prop_id, data in self.properties_portfolio.items():
+            # Placeholder: In a real system, you'd show more details
+            print(f"  - {data.get('name', prop_id)} (Value: ${data.get('value', 0):.2f})")
+        print("---------------------")
+
+    def collect_property_income(self, current_turn=0):
+        if not self.properties_portfolio:
+            print("You do not own any properties to collect income from.")
+            return 0 # No income collected
+        
+        # Placeholder: Actual income calculation would go here.
+        print("There is no property income to collect at this time.")
+        return 0 # No income collected

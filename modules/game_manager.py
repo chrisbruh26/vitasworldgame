@@ -14,7 +14,7 @@ from .game_objects import Computer # Import Computer
 class GameManager:
     """Manages the overall game state and systems."""
     def __init__(self):
-        self.player = Player(start_money=50)
+        self.player = Player(start_money=100)
         self.area_manager = AreaManager()
         self.item_manager = ItemManager() # Simplified, items created directly for now
         self.npc_manager = NPCManager()
