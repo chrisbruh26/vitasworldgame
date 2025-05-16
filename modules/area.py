@@ -22,6 +22,10 @@ class Area:
         self.items = [] # List of Item instances physically in this area
         self.npcs = []  # List of NPC instances physically in this area
         self.id = f"area_{name.lower().replace(' ', '_')}"
+        # For shops: item_name.lower() -> {'prototype': Item_instance, 'price': float, 'stock': int}
+        # The 'prototype' is used to create new items when sold.
+        self.shop_stock = {}
+
 
     def add_connection(self, direction, connected_area):
         """Add a connection to another area and a reverse connection."""
@@ -104,6 +108,46 @@ class Area:
     def __str__(self):
         return f"{self.name} (Origin: {self.area_origin_coords}, Size: {self.grid_width}x{self.grid_length})"
 
+    # --- Shop-specific methods ---
+    def add_item_to_shop(self, item_prototype, price, quantity):
+        """
+        Adds an item type to the shop's for-sale stock.
+        :param item_prototype: An instance of the Item to be used as a template.
+        :param price: The selling price of the item.
+        :param quantity: How many units are in stock (can be float('inf')).
+        """
+        self.shop_stock[item_prototype.name.lower()] = {
+            'prototype': item_prototype,
+            'price': price,
+            'stock': quantity
+        }
+        print(f"Added {item_prototype.name} to {self.name}'s shop stock. Price: ${price}, Stock: {quantity}")
+
+    def get_shop_listing(self):
+        """Returns a list of strings describing items for sale."""
+        if not self.shop_stock:
+            return []
+        listing = []
+        for name, details in self.shop_stock.items():
+            stock_info = "Unlimited" if details['stock'] == float('inf') else str(details['stock'])
+            listing.append(f"- {details['prototype'].name}: ${details['price']:.2f} (Stock: {stock_info})")
+        return listing
+
+    def process_purchase(self, item_name_query, buyer_money):
+        """
+        Processes a purchase if possible.
+        Returns the item instance and its price if successful, else (None, 0).
+        """
+        item_details = self.shop_stock.get(item_name_query.lower())
+        if not item_details:
+            return None, 0 # Item not found
+        if item_details['stock'] <= 0:
+            return None, 0 # Out of stock
+        if buyer_money < item_details['price']:
+            return None, 0 # Cannot afford
+
+        item_details['stock'] -= 1
+        return item_details['prototype'].clone(), item_details['price']
 
 class AreaManager:
     """Manages all areas in the game world."""

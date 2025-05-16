@@ -19,6 +19,16 @@ class Item:
     def __str__(self):
         return self.name
 
+    def clone(self):
+        """Creates a new instance of this item (a copy)."""
+        return Item(
+            name=self.name,
+            description=self.description,
+            coordinates=None, # Cloned item is not in the world initially
+            pickupable=self.pickupable,
+            value=self.value
+        )
+
     def to_dict(self):
         """Convert item to dictionary for serialization (future use)."""
         return {

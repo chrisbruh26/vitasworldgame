@@ -54,10 +54,21 @@ class GameManager:
         park.add_object_to_grid(green_pyramid, 8, 8)
         self.item_manager.items_master_list[green_pyramid.id] = green_pyramid
 
-        # Item4: In the shop
-        apple = Item(name="Apple", description="A juicy red apple.", value=2, coordinates=shop.get_global_coordinates(2,2))
-        shop.add_object_to_grid(apple, 2,2)
-        self.item_manager.items_master_list[apple.id] = apple
+        # Item4: In the park, free
+        yellow_star = Item(name="Yellow Star", description="A bright yellow star.", value=0, coordinates=park.get_global_coordinates(5,5))
+        park.add_object_to_grid(yellow_star, 5, 5)
+        self.item_manager.items_master_list[yellow_star.id] = yellow_star
+
+        # Item5: In the shop
+        # apple = Item(name="Apple", description="A juicy red apple.", value=2, coordinates=shop.get_global_coordinates(2,2))
+        # shop.add_object_to_grid(apple, 2,2) # We won't put it on the floor if it's for sale via shop_stock
+        # self.item_manager.items_master_list[apple.id] = apple
+
+        # Stock the shop
+        shop_apple_prototype = Item(name="Apple", description="A juicy red apple.", value=2)
+        shop.add_item_to_shop(shop_apple_prototype, price=3.00, quantity=10) # Sell for $3
+        shop_water_prototype = Item(name="Bottled Water", description="Clean drinking water.", value=1)
+        shop.add_item_to_shop(shop_water_prototype, price=1.50, quantity=float('inf')) # Unlimited water
 
 
         # Create NPCs
@@ -107,6 +118,14 @@ class GameManager:
                 self.player.remove_item(" ".join(args)) # remove_item now handles dropping
             else:
                 print("Drop what?")
+
+        elif action == "buy":
+            if args:
+                item_to_buy = " ".join(args)
+                self.player.buy_item(item_to_buy)
+            else:
+                print("Buy what? (e.g., buy apple)")
+                
         elif action == "teleport" or action == "tp":
             if not args:
                 print("Teleport where? Usage: tp <area_name> [x] [y]")

@@ -91,6 +91,12 @@ class Player:
                 print(f"  - {direction.capitalize()}: to {area.name}")
         print("---")
 
+        # Display items for sale if this area is a shop
+        if hasattr(self.current_area, 'shop_stock') and self.current_area.shop_stock:
+            print("Items for sale here:")
+            for line in self.current_area.get_shop_listing():
+                print(f"  {line}")
+
     def move(self, direction):
         """Move the player one step in a direction or through a connection."""
         if not self.current_area:
@@ -184,3 +190,26 @@ class Player:
             for item in self.inventory:
                 print(f"  - {item.name}")
         print(f"Money: ${self.money}")
+
+    def buy_item(self, item_name_query):
+        """Attempt to buy an item from the current area's shop."""
+        if not self.current_area:
+            print("You are not in any area to buy from.")
+            return
+        if not hasattr(self.current_area, 'shop_stock') or not self.current_area.shop_stock:
+            print("This place doesn't seem to be selling anything.")
+            return
+
+        item_instance, price = self.current_area.process_purchase(item_name_query, self.money)
+
+        if item_instance:
+            self.money -= price
+            self.add_item(item_instance) # add_item already prints a message
+            print(f"You paid ${price:.2f}. Your money: ${self.money:.2f}")
+        else:
+            # More specific feedback could come from process_purchase if we enhance it
+            # For now, a general failure message.
+            details = self.current_area.shop_stock.get(item_name_query.lower())
+            if not details: print(f"The shop doesn't have '{item_name_query}'.")
+            elif details['stock'] <= 0: print(f"'{item_name_query}' is out of stock.")
+            elif self.money < details['price']: print(f"You can't afford '{item_name_query}'. It costs ${details['price']:.2f}, you have ${self.money:.2f}.")
