@@ -5,6 +5,7 @@ Handles the player character and their interactions with the game world.
 
 from .coordinates import Coordinates
 from .item import Item
+from .npc import NPC # Moved import here
 
 class Player:
     """Player class for the game."""
@@ -14,6 +15,7 @@ class Player:
         self.current_area = None
         self.coordinates = Coordinates(0, 0, 0) # Global coordinates
         self.money = start_money
+        self.stock_portfolio = {} # symbol -> {'shares': int, 'avg_price': float}
 
     def set_current_area(self, area, grid_x=None, grid_y=None):
         """Set the current area for the player and position them on its grid."""
@@ -60,9 +62,14 @@ class Player:
             for item in items_here:
                 print(f"  - {item.name}: {item.description}")
         
+        other_game_objects_here = [obj for obj in objects_here if not isinstance(obj, Item) and not isinstance(obj, NPC)]
+        if other_game_objects_here:
+            print("Objects here:")
+            for obj in other_game_objects_here: # Corrected to iterate over other_game_objects_here
+                print(f"  - {obj.name}: {obj.description}")
+        
         # Display NPCs at current position
-        from .npc import NPC # avoid circular import
-        npcs_here = [obj for obj in objects_here if isinstance(obj, NPC)]
+        npcs_here = [obj for obj in objects_here if isinstance(obj, NPC)] # NPC is now known
         if npcs_here:
             print("People here:")
             for npc in npcs_here:
@@ -213,3 +220,54 @@ class Player:
             if not details: print(f"The shop doesn't have '{item_name_query}'.")
             elif details['stock'] <= 0: print(f"'{item_name_query}' is out of stock.")
             elif self.money < details['price']: print(f"You can't afford '{item_name_query}'. It costs ${details['price']:.2f}, you have ${self.money:.2f}.")
+
+    def view_portfolio(self):
+        if not self.stock_portfolio:
+            print("Your stock portfolio is empty.")
+            return
+        print("\n--- Your Stock Portfolio ---")
+        # In a real scenario, you'd want to fetch current prices from the Computer/StockMarket
+        # to calculate current total value. For now, just display holdings.
+        for symbol, data in self.stock_portfolio.items():
+            print(f"  {symbol}: {data['shares']} shares, Avg. Buy Price: ${data['avg_price']:.2f}")
+        print("--------------------------")
+
+    def buy_stock(self, symbol, shares, price_per_share):
+        # Money check should ideally happen before calling this, or here.
+        # For now, assuming Computer interface checks affordability.
+        
+        self.money -= shares * price_per_share # Deduct money
+        if symbol in self.stock_portfolio:
+            current_shares = self.stock_portfolio[symbol]['shares']
+            current_avg_price = self.stock_portfolio[symbol]['avg_price']
+            total_cost_old = current_shares * current_avg_price
+            total_cost_new_batch = shares * price_per_share
+            
+            new_total_shares = current_shares + shares
+            new_avg_price = (total_cost_old + total_cost_new_batch) / new_total_shares
+            
+            self.stock_portfolio[symbol]['shares'] = new_total_shares
+            self.stock_portfolio[symbol]['avg_price'] = new_avg_price
+        else:
+            self.stock_portfolio[symbol] = {'shares': shares, 'avg_price': price_per_share}
+        print(f"Successfully bought {shares} shares of {symbol} at ${price_per_share:.2f} each.")
+        print(f"Remaining money: ${self.money:.2f}")
+        return True
+
+    def sell_stock(self, symbol, shares_to_sell, price_per_share):
+        # Affordability/ownership check should happen before calling this.
+
+        self.money += shares_to_sell * price_per_share # Add money
+        
+        avg_buy_price = self.stock_portfolio[symbol]['avg_price']
+        profit_loss_per_share = price_per_share - avg_buy_price
+        total_profit_loss = profit_loss_per_share * shares_to_sell
+        
+        self.stock_portfolio[symbol]['shares'] -= shares_to_sell
+        if self.stock_portfolio[symbol]['shares'] == 0:
+            del self.stock_portfolio[symbol]
+            
+        print(f"Successfully sold {shares_to_sell} shares of {symbol} at ${price_per_share:.2f} each.")
+        print(f"Profit/Loss for this transaction: ${total_profit_loss:.2f}")
+        print(f"Remaining money: ${self.money:.2f}")
+        return True

@@ -9,6 +9,7 @@ from .area import Area, AreaManager
 from .item import Item, ItemManager
 from .npc import NPC, NPCManager
 from .coordinates import Coordinates
+from .game_objects import Computer # Import Computer
 
 class GameManager:
     """Manages the overall game state and systems."""
@@ -18,6 +19,7 @@ class GameManager:
         self.item_manager = ItemManager() # Simplified, items created directly for now
         self.npc_manager = NPCManager()
         self.running = True
+        # self.object_manager = GameObjectManager() # Can add if we use it for Computer creation
         self.game_turn = 0
 
     def initialize_game(self):
@@ -86,6 +88,11 @@ class GameManager:
         park.add_object_to_grid(zippy, 1, 8)
         self.npc_manager.add_npc(zippy)
 
+        # Create and place a Computer
+        stock_computer = Computer(name="Stock Terminal", description="A terminal for trading stocks.")
+        # Place it in the shop, for example at grid (1,1)
+        shop.add_object_to_grid(stock_computer, 1, 1)
+
         # Place Player
         self.player.set_current_area(park, 1, 1)
 
@@ -125,6 +132,27 @@ class GameManager:
                 self.player.buy_item(item_to_buy)
             else:
                 print("Buy what? (e.g., buy apple)")
+
+        elif action == "interact":
+            if not args:
+                print("Interact with what?")
+                return
+            
+            object_name_query = " ".join(args)
+            player_gx, player_gy = self.player.get_grid_position()
+            
+            # Check objects at player's current cell
+            objects_here = self.player.current_area.get_objects_at_grid_cell(player_gx, player_gy)
+            target_object = None
+            for obj in objects_here:
+                if object_name_query.lower() in obj.name.lower():
+                    target_object = obj
+                    break
+            
+            if target_object and hasattr(target_object, 'interact'):
+                target_object.interact(self.player)
+            else:
+                print(f"You don't see a '{object_name_query}' here to interact with.")
                 
         elif action == "teleport" or action == "tp":
             if not args:
@@ -199,9 +227,13 @@ class GameManager:
     def update_world(self):
         """Update game state, like NPC actions."""
         self.game_turn += 1
-        # print(f"\n--- Turn {self.game_turn} ---") # Optional: For debugging turn progression
-        self.npc_manager.update_all_npcs()
-        # Other time-based updates could go here
+        
+        npc_action_messages = self.npc_manager.update_all_npcs()
+        if npc_action_messages:
+            # print(f"\n--- Turn {self.game_turn} ---") # Optional: For debugging turn progression
+            for npc, message in npc_action_messages:
+                if npc.location == self.player.current_area: # Only print if NPC is in player's area
+                    print(message)
 
     def run(self):
         """Main game loop."""
