@@ -24,6 +24,7 @@ class Area:
         self.id = f"area_{name.lower().replace(' ', '_')}"
         # For shops: item_name.lower() -> {'prototype': Item_instance, 'price': float, 'stock': int}
         # The 'prototype' is used to create new items when sold.
+        self.associated_stock_symbol = None # For linking area to a stock market symbol
         self.shop_stock = {}
 
 

@@ -434,16 +434,15 @@ class Computer(GameObject):
     def initialize_stock_market(self):
         """Initialize the stock market with some default stocks."""
         self.stock_market = {
-            "TECH": {"name": "BunnyTech Inc.", "price": 150.0, "volatility": 0.05},
-            "BANK": {"name": "First National Bank", "price": 200.0, "volatility": 0.02},
-            "MALL": {"name": "Vita Mall Corp", "price": 75.0, "volatility": 0.03},
-            "HOTL": {"name": "Luxury Hotels", "price": 120.0, "volatility": 0.04},
-            "FUEL": {"name": "Carrot Energy", "price": 85.0, "volatility": 0.06},
-            "FCTY": {"name": "Manufacturing Inc.", "price": 95.0, "volatility": 0.04},
-            "CNVS": {"name": "QuickMart Stores", "price": 45.0, "volatility": 0.03},
-            "APRL": {"name": "Fashion Trends", "price": 60.0, "volatility": 0.07},
-            "REST": {"name": "Carrot Cuisine", "price": 70.0, "volatility": 0.05},
-            "CAFE": {"name": "Bean Dreams", "price": 40.0, "volatility": 0.04}
+            "TECH": {"name": "BunnyTech Inc.", "price": 150.00, "volatility": 0.05, "recent_sales_value": 0.0},
+            "BANK": {"name": "First National Bank", "price": 200.00, "volatility": 0.02, "recent_sales_value": 0.0},
+            "MALL": {"name": "Vita Mall Corp", "price": 75.00, "volatility": 0.03, "recent_sales_value": 0.0},
+            "FUEL": {"name": "Carrot Energy", "price": 85.00, "volatility": 0.06, "recent_sales_value": 0.0},
+            "FCTY": {"name": "Manufacturing Inc.", "price": 95.0, "volatility": 0.04, "recent_sales_value": 0.0},
+            "CNVS": {"name": "QuickMart Stores", "price": 45.0, "volatility": 0.03, "recent_sales_value": 0.0},
+            "APRL": {"name": "Fashion Trends", "price": 60.0, "volatility": 0.07, "recent_sales_value": 0.0},
+            "REST": {"name": "Carrot Cuisine", "price": 70.0, "volatility": 0.05, "recent_sales_value": 0.0},
+            "CAFE": {"name": "Bean Dreams", "price": 40.0, "volatility": 0.04, "recent_sales_value": 0.0}
         }
         
     def update_stock_prices(self):
