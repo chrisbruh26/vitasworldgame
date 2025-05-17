@@ -101,4 +101,14 @@ Testing methods:
 * items, NPCs, objects, and areas hardcoded (for now!)
 * items on the floor near the NPCs should be next to the NPC so that we can see if the NPC picks it up.
 * Once successful, we will move the items farther from the NPC and see if they can teleport themselves to it.
-* Once all of this has been completed, we can add a money system, like subtracting money from NPCs when they pick up an item. 
+* Once all of this has been completed, we can add a money system, like subtracting money from NPCs when they pick up an item.
+* 
+
+Ways Vita could manipulate NPCs into spending more money:
+1. direct methods (luring NPCs into a place)
+   A. steal item from NPC, place it inside store, NPC searches for it and decides to buy something from the store they end up in (would need to let NPCs follow players and search for items)
+   B. distraction/chaos makes the NPCs flee and hide inside a store, and then they spend money there. Cartoon violence, explosions, fights, wacky stuff like dozens of birds circling around NPCs and scaring them (at Vita's command)
+2. indirect method (The Gray Bird)
+   A. posters, billboards, signs that display messages from The Gray Bird to the people of the city. Things like product endorsements from The Gray Bird, special "Gray Bird merch" like shirts and hats (if Vita opens a Gray Bird merch store)
+   B. cryptic messages indicating that it is a "prophecy" for any recipients of the message to spend LOTS of money right away at a certain store, maybe other prophecies
+   C. messengers (pigeons, special NPCs, etc) carry a letter/whisper words near NPCs with a message of commands from The Gray Bird. Gray Bird commands include that the NPCs must bring certain items to a specific location, perform other tasks for her in the future
