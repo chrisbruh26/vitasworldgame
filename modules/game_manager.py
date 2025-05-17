@@ -210,6 +210,23 @@ class GameManager:
             for npc in npcs_in_area:
                 if hasattr(npc, 'start_fleeing'):
                     npc.start_fleeing() # Default duration
+        
+        elif action == "birds" or action == "summon_birds":
+            if not self.player.current_area:
+                print("You whistle, but you're in a void. No birds answer.")
+                return
+
+            npcs_in_area = list(self.player.current_area.npcs) # Create a copy
+            if not npcs_in_area:
+                print("You summon a flock of birds, but there's no one around to appreciate (or fear) them.")
+                return
+
+            print("With a sharp whistle, you summon a chaotic flock of birds!")
+            print("They dive and circle, causing a ruckus!")
+            for npc in npcs_in_area:
+                if hasattr(npc, 'start_fleeing'):
+                    # We could potentially have different flee durations or intensities for different scares
+                    npc.start_fleeing(duration=random.randint(4, 7)) # Birds might scare for a slightly varied time
 
         elif action == "where":
             if args:
@@ -262,13 +279,25 @@ class GameManager:
                 npc = update_data['npc']
                 action_message = update_data['action_message']
                 purchase_info = update_data['purchase_info']
+                original_npc_location_for_action = update_data['original_location_for_action']
 
-                if action_message and npc.location == self.player.current_area:
+                # Determine if the action_message should be printed
+                print_this_message = False
+                if action_message:
+                    # If NPC is currently in player's area, print
+                    if npc.location == self.player.current_area:
+                        print_this_message = True
+                    # Else, if NPC *was* in player's area when action started (and potentially moved out), print
+                    elif original_npc_location_for_action == self.player.current_area and \
+                         npc.location != self.player.current_area:
+                        print_this_message = True
+                
+                if print_this_message:
                     print(action_message)
                 
                 if purchase_info and purchase_info.get('stock_symbol'):
-                    stock_symbol = purchase_info['stock_symbol']
-                    price = purchase_info['price']
+                    stock_symbol = purchase_info['stock_symbol'] # Already defined
+                    price = purchase_info['price'] # Already defined
                     print(f"DEBUG: NPC Purchase by {npc.name} of {purchase_info['item_name']} for ${price} (Stock: {stock_symbol}) noted.")
                     for computer in self.computers:
                         if hasattr(computer, 'record_sale_for_stock'):

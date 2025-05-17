@@ -163,7 +163,13 @@ class NPC:
                     self.set_location(new_area)
                     self.action_cooldown = 1 # Short cooldown after fleeing to new area
                     if getattr(new_area, 'is_shelter', False):
-                        action_message = f"{self.name} flees from {old_area_name} towards the {chosen_direction} and ducks into {new_area.name}!"
+                        # if NPCs fleeing is more than 1, include both in message
+                        if self.location.npcs_fleeing > 1:
+                            # check if every npc is fleeing to the same area
+                            action_message = f"{self.name} and {self.location.npcs_fleeing - 1} others flee from {old_area_name} towards the {chosen_direction} and duck into {new_area.name}!"
+
+                        else:
+                            action_message = f"{self.name} flees from {old_area_name} towards the {chosen_direction} and ducks into {new_area.name}!"
                     else:
                         action_message = f"{self.name} flees from {old_area_name} towards the {chosen_direction} into {new_area.name}!"
                     return action_message, None
@@ -172,6 +178,8 @@ class NPC:
             dx, dy = random.choice([(0,1), (0,-1), (1,0), (-1,0)]) # No idle (0,0) when fleeing
             if self.move_on_grid(dx, dy):
                 action_message = f"{self.name} scurries around in panic!"
+            else: # NPC couldn't move
+                action_message = f"{self.name} looks panicked but is stuck!"
             self.action_cooldown = 0 # Act quickly when fleeing
             return action_message, None
         elif self.is_fleeing and self.flee_timer <= 0:
@@ -326,11 +334,17 @@ class NPCManager:
 
     def update_all_npcs(self):
         messages = []
-        for npc in self.npcs.values():
+        # Iterate over a copy of values if NPCs could be removed during iteration, though not currently the case.
+        for npc_obj in list(self.npcs.values()): 
+            original_location = npc_obj.location # Capture location BEFORE action
+
             # npc.update() now returns (action_message, purchase_info)
-            result = npc.update() 
+            result = npc_obj.update() 
             if result: # Ensure result is not None (e.g. if NPC is on cooldown and returns None early)
                 action_message, purchase_info = result
                 if action_message or purchase_info: # Only add if there's something to report
-                    messages.append({'npc': npc, 'action_message': action_message, 'purchase_info': purchase_info})
+                    messages.append({'npc': npc_obj, 
+                                     'action_message': action_message, 
+                                     'purchase_info': purchase_info,
+                                     'original_location_for_action': original_location})
         return messages
