@@ -281,6 +281,48 @@ class GameManager:
         if not found:
             print(f"No entity matching '{entity_name_query}' found in any loaded area.")
 
+    def _get_plural_verb_form(self, verb):
+        """
+        Converts a third-person singular present tense verb to its base form.
+        E.g., "goes" -> "go", "has" -> "have", "scurries" -> "scurry", "seems" -> "seem".
+        This is a simplified rule-based approach.
+        """
+        if verb == "is" or verb == "was": # These are special and usually change to "are"/"were"
+            return verb # For this function's purpose, don't change them to base form like "be"
+
+        if verb == "has":
+            return "have"
+        
+        # Rule for verbs ending in "ies": change "ies" to "y"
+        # (e.g., "tries" -> "try", "scurries" -> "scurry")
+        if verb.endswith("ies"):
+            return verb[:-3] + "y"
+
+        # Rule for verbs ending in "es" after s, z, x, sh, ch
+        # (e.g., "watches" -> "watch", "kisses" -> "kiss", "fixes" -> "fix", "buzzes" -> "buzz")
+        # Also handles special "goes" -> "go", "does" -> "do"
+        if verb.endswith("es"):
+            if verb.endswith("ches") or verb.endswith("shes") or \
+               verb.endswith("xes") or verb.endswith("zes") or verb.endswith("sses"):
+                return verb[:-2]
+            if verb == "goes" or verb == "does":
+                return verb[:-2]
+
+        # General rule for verbs ending in "s" (but not "ss", "us", "is")
+        # (e.g., "seems" -> "seem", "wanders" -> "wander", "huddles" -> "huddle", "uses" -> "use")
+        if verb.endswith("s"):
+            if not (verb.endswith("ss") or verb.endswith("us") or verb.endswith("is")):
+                if len(verb) > 1: 
+                    return verb[:-1]
+                    
+        return verb # Return original if no rule matched or not applicable
+
+    def _format_action_suffix_for_plural(self, message_suffix):
+        words = message_suffix.split(' ', 1)
+        first_word = words[0]
+        rest_of_phrase = words[1] if len(words) > 1 else ""
+        plural_verb = self._get_plural_verb_form(first_word)
+        return plural_verb + (" " + rest_of_phrase if rest_of_phrase else "")
 
     def update_world(self):
         """Update game state, like NPC actions."""
@@ -290,13 +332,13 @@ class GameManager:
         #for computer in self.computers:
         #    computer.update_stock_prices() # This will print changes if any
         
-        processed_npc_ids_for_message = set()
+        processed_npc_ids_for_message = set() # Tracks NPCs whose flee actions are consolidated and printed
         
         npc_updates = self.npc_manager.update_all_npcs()
 
         # --- Consolidate Fleeing Messages ---
         if npc_updates:
-            flee_groups = {} # Key: (origin_area, old_name, new_name, direction), Value: list of npc_names
+            flee_groups = {} # Key: (origin_area_obj, old_area_name, new_area_name, direction), Value: list of npc_names
             
             for update_data in npc_updates:
                 flee_event = update_data.get('flee_event')
@@ -336,31 +378,86 @@ class GameManager:
                 if consolidated_message: # Check if a message was actually formed
                     print(consolidated_message)
 
+        # --- Consolidate General NPC Action Messages ---
+        # This set tracks NPCs whose general actions are consolidated and printed
+        processed_npc_ids_for_action_grouping = set()
+        action_message_groups = {} # Key: (message_suffix, original_location_obj), Value: list of npc_names
 
         if npc_updates:
-            # print(f"\n--- Turn {self.game_turn} ---") # Optional: For debugging turn progression
             for update_data in npc_updates:
                 npc = update_data['npc']
-            
+                action_message = update_data.get('action_message')
+                original_location = update_data.get('original_location_for_action') # Area object where action occurred
+
+                # Skip if this NPC's action was already part of a consolidated flee message
+                if npc.id in processed_npc_ids_for_message:
+                    continue
+
+                if action_message and original_location:
+                    # Determine if this action is visible/relevant to the player for grouping
+                    action_is_visible_for_grouping = False
+                    if npc.location == self.player.current_area: # NPC is currently in player's area
+                        action_is_visible_for_grouping = True
+                    elif original_location == self.player.current_area and npc.location != self.player.current_area:
+                        # Action happened in player's current area, but NPC has since moved out.
+                        # The message pertains to what happened in player's current area.
+                        action_is_visible_for_grouping = True
+                    
+                    if action_is_visible_for_grouping:
+                        npc_name = npc.name
+                        # Ensure the message starts with the NPC's name followed by a space
+                        if action_message.startswith(npc_name + " "):
+                            message_suffix = action_message[len(npc_name) + 1:] # Get the part after "NpcName "
+                            group_key = (message_suffix, original_location)
+                            
+                            action_message_groups.setdefault(group_key, []).append(npc_name)
+                            processed_npc_ids_for_action_grouping.add(npc.id)
+
+            # Print consolidated/single general action messages from groups
+            # This should appear after flee messages are printed.
+            for key_info, names in action_message_groups.items():
+                message_suffix, _origin_area_obj = key_info
+                count = len(names)
+                
+                effective_message_suffix = message_suffix
+                if count > 1:
+                    effective_message_suffix = self._format_action_suffix_for_plural(message_suffix)
+
+                consolidated_message = ""
+                if count == 1:
+                    # For a single NPC, use the original message_suffix as it's already correctly conjugated
+                    consolidated_message = f"{names[0]} {message_suffix}" 
+                elif count == 2:
+                    consolidated_message = f"{names[0]} and {names[1]} {effective_message_suffix}"
+                elif count == 3:
+                    consolidated_message = f"{names[0]}, {names[1]}, and {names[2]} {effective_message_suffix}"
+                else: # count > 3
+                    consolidated_message = f"{names[0]}, {names[1]}, {names[2]}, and {count - 3} others {effective_message_suffix}"
+                
+                if consolidated_message:
+                    print(consolidated_message)
+
+        # --- Handle Purchase Info and any other individual messages (e.g., not grouped) ---
+        if npc_updates:
+            for update_data in npc_updates:
+                npc = update_data['npc']
                 action_message = update_data.get('action_message')
                 purchase_info = update_data.get('purchase_info')
-
-
                 original_npc_location_for_action = update_data['original_location_for_action']
 
-                
-
-                # Print individual messages if not part of a processed flee group
-                if action_message and npc.id not in processed_npc_ids_for_message:
-                    print_this_message = False
-                    if npc.location == self.player.current_area: # NPC is currently in player's area
-                        print_this_message = True
-                    elif original_npc_location_for_action == self.player.current_area and npc.location != self.player.current_area: # NPC was in player's area and moved out
-                        print_this_message = True
+                # Print any action messages that were not handled by flee grouping or general action grouping
+                if action_message and \
+                   npc.id not in processed_npc_ids_for_message and \
+                   npc.id not in processed_npc_ids_for_action_grouping:
                     
-                    if print_this_message:
-                        print(action_message)
-
+                    print_this_individual_message = False
+                    if npc.location == self.player.current_area: # NPC is currently in player's area
+                        print_this_individual_message = True
+                    elif original_npc_location_for_action == self.player.current_area and npc.location != self.player.current_area: # NPC was in player's area and moved out
+                        print_this_individual_message = True
+                    
+                    if print_this_individual_message:
+                        print(action_message) # Print the original, full action message
 
                 if purchase_info and purchase_info.get('stock_symbol'):
                     stock_symbol = purchase_info['stock_symbol'] 
