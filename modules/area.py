@@ -25,6 +25,7 @@ class Area:
         # For shops: item_name.lower() -> {'prototype': Item_instance, 'price': float, 'stock': int}
         # The 'prototype' is used to create new items when sold.
         self.associated_stock_symbol = None # For linking area to a stock market symbol
+        self.is_shelter = False # Flag to indicate if this area is a good place to hide
         self.shop_stock = {}
 
 

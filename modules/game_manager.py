@@ -34,6 +34,7 @@ class GameManager:
         shop_origin = Coordinates(20,0,0) # Shop is to the east of the park
         shop = Area(name="General Store", description="A small store with various goods.", area_origin_coords=shop_origin, grid_width=8, grid_length=8)
         shop.associated_stock_symbol = "MALL" # Vita Mall Corp stock
+        shop.is_shelter = True # The store is a shelter
         self.area_manager.add_area(shop)
 
         # Connect Areas
@@ -193,7 +194,22 @@ class GameManager:
                     print(f"Area '{target_area_name}' not found.")
                     return
             
-            self.player.teleport(target_area, tp_x, tp_y)
+            self.player.teleport(target_area, tp_x, tp_y) # Actually perform the teleport
+        
+        elif action == "scare":
+            if not self.player.current_area:
+                print("You shout into the void, but nothing happens.")
+                return
+
+            npcs_in_area = list(self.player.current_area.npcs) # Create a copy to iterate over
+            if not npcs_in_area:
+                print("You try to look menacing, but there's no one here to scare.")
+                return
+
+            print("You let out a terrifying shout!")
+            for npc in npcs_in_area:
+                if hasattr(npc, 'start_fleeing'):
+                    npc.start_fleeing() # Default duration
 
         elif action == "where":
             if args:

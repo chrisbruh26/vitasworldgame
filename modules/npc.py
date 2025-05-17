@@ -21,7 +21,7 @@ class NPC:
         # Shopping related attributes
         self.desire_to_shop_chance = random.uniform(0.50, 0.75) # Chance per turn to consider shopping
         self.is_currently_shopping = False # Flag to indicate multi-turn shopping intent
-        self.desire_to_change_area_chance = random.uniform(0.2, 0.10) # Small chance to wander to a new area
+        self.desire_to_change_area_chance = random.uniform(0.02, 0.10) # Corrected: Small chance to wander to a new area
         self.shopping_target_item_name = None # Specific item NPC might want
 
         # Fleeing related attributes
@@ -127,18 +127,48 @@ class NPC:
         # -1. Check if Fleeing
         if self.is_fleeing and self.flee_timer > 0:
             self.flee_timer -= 1
+            action_message = None # Initialize action_message for this block
+
+            # A. If currently in a shelter, stay put and move randomly inside
+            if self.location and getattr(self.location, 'is_shelter', False):
+                dx, dy = random.choice([(0,1), (0,-1), (1,0), (-1,0)]) # No idle (0,0) when fleeing
+                if self.move_on_grid(dx, dy):
+                    action_message = f"{self.name} scurries around nervously inside {self.location.name}."
+                else: # Can't move, maybe stuck in a corner
+                    action_message = f"{self.name} huddles in a corner of {self.location.name}."
+                self.action_cooldown = 0 # Act quickly when fleeing
+                return action_message, None
+
             # Try to move to a connected area
+            # B. Not in a shelter, try to find one or flee to any connected area
             if self.location and self.location.connections:
-                available_directions = list(self.location.connections.keys())
-                if available_directions:
-                    chosen_direction = random.choice(available_directions)
-                    new_area = self.location.connections[chosen_direction]
+                shelters = []
+                other_exits = []
+                for direction, connected_area in self.location.connections.items():
+                    if getattr(connected_area, 'is_shelter', False):
+                        shelters.append((direction, connected_area))
+                    else:
+                        other_exits.append((direction, connected_area))
+                
+                moved_to_new_area = False
+                if shelters: # Prioritize shelters
+                    chosen_direction, new_area = random.choice(shelters)
+                    moved_to_new_area = True
+                elif other_exits: # No shelters, pick any other exit
+                    chosen_direction, new_area = random.choice(other_exits)
+                    moved_to_new_area = True
+
+                if moved_to_new_area:
                     old_area_name = self.location.name
                     self.set_location(new_area)
                     self.action_cooldown = 1 # Short cooldown after fleeing to new area
-                    return f"{self.name} flees from {old_area_name} towards the {chosen_direction} into {new_area.name}!", None
+                    if getattr(new_area, 'is_shelter', False):
+                        action_message = f"{self.name} flees from {old_area_name} towards the {chosen_direction} and ducks into {new_area.name}!"
+                    else:
+                        action_message = f"{self.name} flees from {old_area_name} towards the {chosen_direction} into {new_area.name}!"
+                    return action_message, None
             
-            # If couldn't change area, move randomly within current area
+            # C. No connections or couldn't move to a new area, move randomly within current (unsafe) area
             dx, dy = random.choice([(0,1), (0,-1), (1,0), (-1,0)]) # No idle (0,0) when fleeing
             if self.move_on_grid(dx, dy):
                 action_message = f"{self.name} scurries around in panic!"
@@ -146,6 +176,8 @@ class NPC:
             return action_message, None
         elif self.is_fleeing and self.flee_timer <= 0:
             self.is_fleeing = False # Stop fleeing
+            self.action_cooldown = random.randint(1,3) # Cooldown after calming down
+            return f"{self.name} seems to calm down.", None # Return a message
 
         my_gx, my_gy = self.get_grid_position()
 
