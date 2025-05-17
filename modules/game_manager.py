@@ -236,15 +236,27 @@ class GameManager:
         self.game_turn += 1
 
         # Update stock prices on all computers
-        for computer in self.computers:
-            computer.update_stock_prices() # This will print changes if any
+        #for computer in self.computers:
+        #    computer.update_stock_prices() # This will print changes if any
         
-        npc_action_messages = self.npc_manager.update_all_npcs()
-        if npc_action_messages:
+        npc_updates = self.npc_manager.update_all_npcs()
+        if npc_updates:
             # print(f"\n--- Turn {self.game_turn} ---") # Optional: For debugging turn progression
-            for npc, message in npc_action_messages:
-                if npc.location == self.player.current_area: # Only print if NPC is in player's area
-                    print(message)
+            for update_data in npc_updates:
+                npc = update_data['npc']
+                action_message = update_data['action_message']
+                purchase_info = update_data['purchase_info']
+
+                if action_message and npc.location == self.player.current_area:
+                    print(action_message)
+                
+                if purchase_info and purchase_info.get('stock_symbol'):
+                    stock_symbol = purchase_info['stock_symbol']
+                    price = purchase_info['price']
+                    print(f"DEBUG: NPC Purchase by {npc.name} of {purchase_info['item_name']} for ${price} (Stock: {stock_symbol}) noted.")
+                    for computer in self.computers:
+                        if hasattr(computer, 'record_sale_for_stock'):
+                            computer.record_sale_for_stock(stock_symbol, price)
 
     def run(self):
         """Main game loop."""

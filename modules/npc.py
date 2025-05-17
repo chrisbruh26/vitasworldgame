@@ -17,6 +17,12 @@ class NPC:
         self.money = money
         self.id = f"npc_{name.lower().replace(' ', '_')}_{random.randint(1000,9999)}"
         self.action_cooldown = 0 # Simple cooldown to prevent acting every single turn
+        
+        # Shopping related attributes
+        self.desire_to_shop_chance = random.uniform(0.50, 0.75) # Chance per turn to consider shopping
+        self.is_currently_shopping = False # Flag to indicate multi-turn shopping intent
+        self.desire_to_change_area_chance = random.uniform(0.2, 0.10) # Small chance to wander to a new area
+        self.shopping_target_item_name = None # Specific item NPC might want
 
     def set_location(self, area, grid_x=None, grid_y=None):
         """Places the NPC in an area and on its grid."""
@@ -91,11 +97,18 @@ class NPC:
                 item.coordinates = None # Item is now in inventory
             return message
         return None
+    
+    def add_item_to_inventory(self, item_instance):
+        """Adds a cloned item instance to NPC's inventory."""
+        self.inventory.append(item_instance)
+        item_instance.coordinates = None # Item is in inventory, not on map
 
     def drop_item(self, item_name):
         """NPC drops an item into its current location."""
         # Similar to player's drop
         return None # Or a message if implemented
+
+    # --- NPC Actions ---
 
     def look_around_and_act(self):
         """NPC scans for items and decides to move or pick up."""
@@ -105,17 +118,24 @@ class NPC:
             return
         
         action_message = None
+        purchase_info = None # To store details of a shop purchase
 
         my_gx, my_gy = self.get_grid_position()
 
-        # 1. Check items at current location
+        # 0. Consider Shopping if in a shop area
+        if hasattr(self.location, 'shop_stock') and self.location.shop_stock:
+            if random.random() < self.desire_to_shop_chance: # Small chance each turn to decide to shop
+                action_message, purchase_info = self.attempt_to_buy_from_shop()
+                return action_message, purchase_info # End turn after shopping attempt
+
+        # 1. Check items at current location (picking up from floor)
         objects_here = self.location.get_objects_at_grid_cell(my_gx, my_gy)
         for obj in objects_here:
             if isinstance(obj, Item) and obj.pickupable:
                 if random.random() < 0.7: # 70% chance to pick up if on same spot
                     action_message = self.pick_up_item(obj, my_gx, my_gy)
                     self.action_cooldown = 2 # Cooldown after picking up
-                    return action_message
+                    return action_message, None # No shop purchase info
 
         # 2. Scan for nearby items (within 2 cells for simplicity)
         target_item = None
@@ -154,27 +174,76 @@ class NPC:
             elif min_dist > 2: # "Teleport" for items further away
                 action_message = self.teleport_to_grid_cell(item_target_pos[0], item_target_pos[1])
                 if action_message: # Teleport successful
-                    self.action_cooldown = 0 # Reset cooldown as teleport is a significant action
-                    return action_message
+                    self.action_cooldown = 1 # Small cooldown after teleport
+                    return action_message, None
             
             if moved:
                 self.action_cooldown = 0 # Reset cooldown as moving towards item is significant
-                return f"{self.name} moves towards {target_item.name}."
+                return f"{self.name} moves towards {target_item.name}.", None
 
-        # 3. If no item interaction, random wander
-        if random.random() < 0.7: # 30% chance to wander
+        # 3. If no item interaction, consider changing area
+        if self.location and self.location.connections and random.random() < self.desire_to_change_area_chance:
+            available_directions = list(self.location.connections.keys())
+            if available_directions:
+                chosen_direction = random.choice(available_directions)
+                new_area = self.location.connections[chosen_direction]
+                # Store old area name for message before it changes
+                old_area_name = self.location.name 
+                self.set_location(new_area) # This changes self.location
+                self.action_cooldown = random.randint(2, 5) # Cooldown after changing area
+                return f"{self.name} wanders from {old_area_name} towards the {chosen_direction} into {new_area.name}.", None
+
+        # 4. If no other action, random wander within current area
+        if random.random() < 0.7: # 70% chance to wander if nothing else to do
             dx, dy = random.choice([(0,1), (0,-1), (1,0), (-1,0), (0,0)]) # (0,0) for idle
             if dx !=0 or dy !=0:
                 if self.move_on_grid(dx, dy):
                     action_message = f"{self.name} wanders around."
-            self.action_cooldown = 1 # Cooldown after attempting to wander
-            return action_message
-        return None
+            self.action_cooldown = random.randint(1,3) # Cooldown after attempting to wander
+            return action_message, None
+            
+        return None, None
+
+
+    def attempt_to_buy_from_shop(self):
+        """NPC attempts to buy an item from the current area's shop_stock."""
+        if not self.location or not hasattr(self.location, 'shop_stock') or not self.location.shop_stock:
+            return f"{self.name} looks around but there's nothing to buy here.", None
+
+        # For now, NPC picks a random item from the shop to consider
+        available_items = list(self.location.shop_stock.keys())
+        if not available_items:
+            return f"{self.name} browsed {self.location.name}, but it's empty.", None
+        
+        item_name_to_buy = random.choice(available_items)
+        item_details = self.location.shop_stock[item_name_to_buy]
+
+        if item_details['stock'] <= 0:
+            self.action_cooldown = 1
+            return f"{self.name} wanted {item_details['prototype'].name}, but it's out of stock.", None
+
+        if self.money >= item_details['price']:
+            # Use the area's process_purchase method
+            bought_item_instance, price = self.location.process_purchase(item_name_to_buy, self.money)
+            if bought_item_instance:
+                self.money -= price
+                self.add_item_to_inventory(bought_item_instance)
+                self.action_cooldown = random.randint(3, 5) # Cooldown after successful purchase
+                purchase_details = {
+                    'item_name': bought_item_instance.name,
+                    'price': price,
+                    'stock_symbol': self.location.associated_stock_symbol
+                }
+                return f"{self.name} bought {bought_item_instance.name} from {self.location.name} for ${price:.2f}.", purchase_details
+            else: # Should not happen if checks above are correct, but as a fallback
+                return f"{self.name} tried to buy {item_name_to_buy} but something went wrong.", None
+        else:
+            self.action_cooldown = random.randint(2, 4) # Cooldown to "save up" or "reconsider"
+            return f"{self.name} wants {item_details['prototype'].name} (costs ${item_details['price']:.2f}), but cannot afford it.", None
 
     def update(self):
         """Called each game turn to allow NPC to perform actions."""
         return self.look_around_and_act()
-
 class NPCManager:
     def __init__(self):
         self.npcs = {} # npc_id -> NPC_object
@@ -193,7 +262,10 @@ class NPCManager:
     def update_all_npcs(self):
         messages = []
         for npc in self.npcs.values():
-            message = npc.update()
-            if message:
-                messages.append((npc, message))
+            # npc.update() now returns (action_message, purchase_info)
+            result = npc.update() 
+            if result: # Ensure result is not None (e.g. if NPC is on cooldown and returns None early)
+                action_message, purchase_info = result
+                if action_message or purchase_info: # Only add if there's something to report
+                    messages.append({'npc': npc, 'action_message': action_message, 'purchase_info': purchase_info})
         return messages
