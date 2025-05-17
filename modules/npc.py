@@ -24,6 +24,10 @@ class NPC:
         self.desire_to_change_area_chance = random.uniform(0.2, 0.10) # Small chance to wander to a new area
         self.shopping_target_item_name = None # Specific item NPC might want
 
+        # Fleeing related attributes
+        self.is_fleeing = False
+        self.flee_timer = 0
+
     def set_location(self, area, grid_x=None, grid_y=None):
         """Places the NPC in an area and on its grid."""
         if self.location and self.location != area : # If changing areas
@@ -119,6 +123,29 @@ class NPC:
         
         action_message = None
         purchase_info = None # To store details of a shop purchase
+
+        # -1. Check if Fleeing
+        if self.is_fleeing and self.flee_timer > 0:
+            self.flee_timer -= 1
+            # Try to move to a connected area
+            if self.location and self.location.connections:
+                available_directions = list(self.location.connections.keys())
+                if available_directions:
+                    chosen_direction = random.choice(available_directions)
+                    new_area = self.location.connections[chosen_direction]
+                    old_area_name = self.location.name
+                    self.set_location(new_area)
+                    self.action_cooldown = 1 # Short cooldown after fleeing to new area
+                    return f"{self.name} flees from {old_area_name} towards the {chosen_direction} into {new_area.name}!", None
+            
+            # If couldn't change area, move randomly within current area
+            dx, dy = random.choice([(0,1), (0,-1), (1,0), (-1,0)]) # No idle (0,0) when fleeing
+            if self.move_on_grid(dx, dy):
+                action_message = f"{self.name} scurries around in panic!"
+            self.action_cooldown = 0 # Act quickly when fleeing
+            return action_message, None
+        elif self.is_fleeing and self.flee_timer <= 0:
+            self.is_fleeing = False # Stop fleeing
 
         my_gx, my_gy = self.get_grid_position()
 
@@ -240,6 +267,12 @@ class NPC:
         else:
             self.action_cooldown = random.randint(2, 4) # Cooldown to "save up" or "reconsider"
             return f"{self.name} wants {item_details['prototype'].name} (costs ${item_details['price']:.2f}), but cannot afford it.", None
+
+    def start_fleeing(self, duration=5):
+        """Makes the NPC start fleeing."""
+        self.is_fleeing = True
+        self.flee_timer = duration
+        self.action_cooldown = 0 # Act immediately
 
     def update(self):
         """Called each game turn to allow NPC to perform actions."""
