@@ -304,8 +304,21 @@ class GameManager:
                     print("You are nowhere.")
         elif action == "quit" or action == "exit":
             self.running = False
+        elif action == "npcinfo":
+            if args:
+                npc_name_query = " ".join(args)
+                self.show_npc_info(npc_name_query)
+            else:
+                print("Usage: npcinfo <npc_name>")
         else:
             print(f"Unknown command: {action}")
+
+    def show_npc_info(self, npc_name_query):
+        npc = self.npc_manager.get_npc(npc_name_query)
+        if npc:
+            print(npc.get_status_info(self.game_turn))
+        else:
+            print(f"NPC '{npc_name_query}' not found.")
 
     def find_entity_coordinates(self, entity_name_query):
         """Find and print coordinates of NPCs or Items."""

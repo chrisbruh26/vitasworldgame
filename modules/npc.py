@@ -459,7 +459,8 @@ class NPC:
             self.action_cooldown = random.randint(2, 4) # Cooldown to "save up" or "reconsider"
             message = f"{self.name} wants {item_prototype_name} (costs ${item_details['price']:.2f}), but cannot afford it."
             self.is_currently_shopping = False # Stop active shopping mode
-            self.recently_failed_to_buy[item_to_buy_key] = current_game_turn + random.randint(3, 5)
+            # Give up "permanently" if cannot afford, as money doesn't change for NPCs yet
+            self.recently_failed_to_buy[item_to_buy_key] = current_game_turn + 99999 # Effectively permanent
 
             if self.shopping_target_item_name and self.shopping_target_item_name.lower() == item_to_buy_key:
                 self.shopping_target_item_name = None
@@ -471,6 +472,34 @@ class NPC:
         self.is_fleeing = True
         self.flee_timer = duration
         self.action_cooldown = 0 # Act immediately
+
+    def get_status_info(self, current_game_turn):
+        """Returns a string with the NPC's current status for debugging."""
+        status = [
+            f"--- Status for {self.name} (ID: {self.id}) ---",
+            f"Location: {self.location.name if self.location else 'None'} at grid {self.get_grid_position()}",
+            f"Money: ${self.money:.2f}",
+            "Inventory:"
+        ]
+        if self.inventory:
+            for item in self.inventory:
+                status.append(f"  - {item.name}")
+        else:
+            status.append("  - Empty")
+        
+        status.append(f"Action Cooldown: {self.action_cooldown} turns")
+        status.append(f"Shopping Frustration Cooldown: {self.shopping_frustration_cooldown} turns")
+        status.append(f"Is Currently Shopping: {self.is_currently_shopping}")
+        status.append(f"Shopping Target Item: {self.shopping_target_item_name if self.shopping_target_item_name else 'None'}")
+        status.append(f"Is Fleeing: {self.is_fleeing}, Flee Timer: {self.flee_timer} turns")
+        status.append("Recently Failed to Buy (Item: Expires in X turns):")
+        if self.recently_failed_to_buy:
+            for item_key, expiry_turn in self.recently_failed_to_buy.items():
+                status.append(f"  - {item_key}: Expires in {expiry_turn - current_game_turn} turns (at turn {expiry_turn})")
+        else:
+            status.append("  - None")
+        status.append("--- End Status ---")
+        return "\n".join(status)
 
     def update(self, current_game_turn):
         """Called each game turn to allow NPC to perform actions."""
