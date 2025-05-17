@@ -272,32 +272,81 @@ class GameManager:
         #for computer in self.computers:
         #    computer.update_stock_prices() # This will print changes if any
         
+        processed_npc_ids_for_message = set()
+        
         npc_updates = self.npc_manager.update_all_npcs()
+
+        # --- Consolidate Fleeing Messages ---
+        if npc_updates:
+            flee_groups = {} # Key: (origin_area, old_name, new_name, direction), Value: list of npc_names
+            
+            for update_data in npc_updates:
+                flee_event = update_data.get('flee_event')
+                original_location = update_data.get('original_location_for_action')
+                if flee_event and original_location == self.player.current_area:
+                    # Only group events originating from player's current area for consolidated display
+                    group_key = (
+                        original_location, # Area object
+                        flee_event['old_area_name'],
+                        flee_event['new_area_name'],
+                        flee_event['direction']
+                    )
+                    if group_key not in flee_groups:
+                        flee_groups[group_key] = []
+                    flee_groups[group_key].append(flee_event['npc_name']) # Store names for the message
+                    processed_npc_ids_for_message.add(flee_event['npc_id']) # Mark as handled for individual message
+
+            for key_info, names in flee_groups.items():
+                _origin_area_obj, old_area_name, new_area_name, direction = key_info
+                
+                count = len(names)
+                consolidated_message = ""
+                if count == 1: # Should not happen if we only process groups > 1, but as fallback
+                    consolidated_message = f"{names[0]} flees from {old_area_name} towards the {direction} into {new_area_name}!"
+                elif count == 2:
+                    consolidated_message = f"{names[0]} and {names[1]} flee from {old_area_name} towards the {direction} into {new_area_name}!"
+                elif count >= 3:
+                    # e.g., "Robo, Zippy, and 1 other flee..." or "Robo, Zippy, and 2 others flee..."
+                    # For simplicity now: "Robo, Zippy, and X others..."
+                    # Or just "{count} NPCs flee..."
+                    # Let's use your suggestion: "{name1}, {name2}, and {remaining} others..." for 3+
+                    if count == 3:
+                         consolidated_message = f"{names[0]}, {names[1]}, and {names[2]} flee from {old_area_name} towards the {direction} into {new_area_name}!"
+                    else: # More than 3
+                        consolidated_message = f"{names[0]}, {names[1]}, {names[2]}, and {count - 3} others flee from {old_area_name} towards the {direction} into {new_area_name}!"
+                
+                if consolidated_message: # Check if a message was actually formed
+                    print(consolidated_message)
+
+
         if npc_updates:
             # print(f"\n--- Turn {self.game_turn} ---") # Optional: For debugging turn progression
             for update_data in npc_updates:
                 npc = update_data['npc']
-                action_message = update_data['action_message']
-                purchase_info = update_data['purchase_info']
+            
+                action_message = update_data.get('action_message')
+                purchase_info = update_data.get('purchase_info')
+
+
                 original_npc_location_for_action = update_data['original_location_for_action']
 
-                # Determine if the action_message should be printed
-                print_this_message = False
-                if action_message:
-                    # If NPC is currently in player's area, print
-                    if npc.location == self.player.current_area:
-                        print_this_message = True
-                    # Else, if NPC *was* in player's area when action started (and potentially moved out), print
-                    elif original_npc_location_for_action == self.player.current_area and \
-                         npc.location != self.player.current_area:
-                        print_this_message = True
                 
-                if print_this_message:
-                    print(action_message)
-                
+
+                # Print individual messages if not part of a processed flee group
+                if action_message and npc.id not in processed_npc_ids_for_message:
+                    print_this_message = False
+                    if npc.location == self.player.current_area: # NPC is currently in player's area
+                        print_this_message = True
+                    elif original_npc_location_for_action == self.player.current_area and npc.location != self.player.current_area: # NPC was in player's area and moved out
+                        print_this_message = True
+                    
+                    if print_this_message:
+                        print(action_message)
+
+
                 if purchase_info and purchase_info.get('stock_symbol'):
-                    stock_symbol = purchase_info['stock_symbol'] # Already defined
-                    price = purchase_info['price'] # Already defined
+                    stock_symbol = purchase_info['stock_symbol'] 
+                    price = purchase_info['price']                     
                     print(f"DEBUG: NPC Purchase by {npc.name} of {purchase_info['item_name']} for ${price} (Stock: {stock_symbol}) noted.")
                     for computer in self.computers:
                         if hasattr(computer, 'record_sale_for_stock'):

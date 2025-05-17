@@ -137,7 +137,10 @@ class NPC:
                 else: # Can't move, maybe stuck in a corner
                     action_message = f"{self.name} huddles in a corner of {self.location.name}."
                 self.action_cooldown = 0 # Act quickly when fleeing
-                return action_message, None
+
+                return {'message': action_message, 'purchase_info': None, 'flee_event': None}
+
+
 
             # Try to move to a connected area
             # B. Not in a shelter, try to find one or flee to any connected area
@@ -161,18 +164,27 @@ class NPC:
                 if moved_to_new_area:
                     old_area_name = self.location.name
                     self.set_location(new_area)
-                    self.action_cooldown = 1 # Short cooldown after fleeing to new area
-                    if getattr(new_area, 'is_shelter', False):
-                        # if NPCs fleeing is more than 1, include both in message
-                        if self.location.npcs_fleeing > 1:
-                            # check if every npc is fleeing to the same area
-                            action_message = f"{self.name} and {self.location.npcs_fleeing - 1} others flee from {old_area_name} towards the {chosen_direction} and duck into {new_area.name}!"
+                    
+                    self.action_cooldown = 1 
+                    flee_event_data = {
+                        'npc_id': self.id,
+                        'npc_name': self.name,
+                        'old_area_name': old_area_name,
+                        'new_area_name': new_area.name,
+                        'direction': chosen_direction
+                    }
 
-                        else:
-                            action_message = f"{self.name} flees from {old_area_name} towards the {chosen_direction} and ducks into {new_area.name}!"
+
+
+
+                    if getattr(new_area, 'is_shelter', False):
+
+                        action_message = f"{self.name} flees from {old_area_name} towards the {chosen_direction} and ducks into {new_area.name}!"
+
+
                     else:
                         action_message = f"{self.name} flees from {old_area_name} towards the {chosen_direction} into {new_area.name}!"
-                    return action_message, None
+                    return {'message': action_message, 'purchase_info': None, 'flee_event': flee_event_data}
             
             # C. No connections or couldn't move to a new area, move randomly within current (unsafe) area
             dx, dy = random.choice([(0,1), (0,-1), (1,0), (-1,0)]) # No idle (0,0) when fleeing
@@ -181,11 +193,14 @@ class NPC:
             else: # NPC couldn't move
                 action_message = f"{self.name} looks panicked but is stuck!"
             self.action_cooldown = 0 # Act quickly when fleeing
-            return action_message, None
+
+            return {'message': action_message, 'purchase_info': None, 'flee_event': None}
+
+
         elif self.is_fleeing and self.flee_timer <= 0:
             self.is_fleeing = False # Stop fleeing
             self.action_cooldown = random.randint(1,3) # Cooldown after calming down
-            return f"{self.name} seems to calm down.", None # Return a message
+            return {'message': f"{self.name} seems to calm down.", 'purchase_info': None, 'flee_event': None}
 
         my_gx, my_gy = self.get_grid_position()
 
@@ -193,7 +208,7 @@ class NPC:
         if hasattr(self.location, 'shop_stock') and self.location.shop_stock:
             if random.random() < self.desire_to_shop_chance: # Small chance each turn to decide to shop
                 action_message, purchase_info = self.attempt_to_buy_from_shop()
-                return action_message, purchase_info # End turn after shopping attempt
+                return {'message': action_message, 'purchase_info': purchase_info, 'flee_event': None}
 
         # 1. Check items at current location (picking up from floor)
         objects_here = self.location.get_objects_at_grid_cell(my_gx, my_gy)
@@ -202,7 +217,7 @@ class NPC:
                 if random.random() < 0.7: # 70% chance to pick up if on same spot
                     action_message = self.pick_up_item(obj, my_gx, my_gy)
                     self.action_cooldown = 2 # Cooldown after picking up
-                    return action_message, None # No shop purchase info
+                    return {'message': action_message, 'purchase_info': None, 'flee_event': None}
 
         # 2. Scan for nearby items (within 2 cells for simplicity)
         target_item = None
@@ -242,11 +257,11 @@ class NPC:
                 action_message = self.teleport_to_grid_cell(item_target_pos[0], item_target_pos[1])
                 if action_message: # Teleport successful
                     self.action_cooldown = 1 # Small cooldown after teleport
-                    return action_message, None
+                    return {'message': action_message, 'purchase_info': None, 'flee_event': None}
             
             if moved:
                 self.action_cooldown = 0 # Reset cooldown as moving towards item is significant
-                return f"{self.name} moves towards {target_item.name}.", None
+                return {'message': f"{self.name} moves towards {target_item.name}.", 'purchase_info': None, 'flee_event': None}
 
         # 3. If no item interaction, consider changing area
         if self.location and self.location.connections and random.random() < self.desire_to_change_area_chance:
@@ -258,7 +273,7 @@ class NPC:
                 old_area_name = self.location.name 
                 self.set_location(new_area) # This changes self.location
                 self.action_cooldown = random.randint(2, 5) # Cooldown after changing area
-                return f"{self.name} wanders from {old_area_name} towards the {chosen_direction} into {new_area.name}.", None
+                return {'message': f"{self.name} wanders from {old_area_name} towards the {chosen_direction} into {new_area.name}.", 'purchase_info': None, 'flee_event': None}
 
         # 4. If no other action, random wander within current area
         if random.random() < 0.7: # 70% chance to wander if nothing else to do
@@ -267,9 +282,9 @@ class NPC:
                 if self.move_on_grid(dx, dy):
                     action_message = f"{self.name} wanders around."
             self.action_cooldown = random.randint(1,3) # Cooldown after attempting to wander
-            return action_message, None
+            return {'message': action_message, 'purchase_info': None, 'flee_event': None}
             
-        return None, None
+        return {'message': None, 'purchase_info': None, 'flee_event': None} # Default empty action
 
 
     def attempt_to_buy_from_shop(self):
@@ -338,13 +353,18 @@ class NPCManager:
         for npc_obj in list(self.npcs.values()): 
             original_location = npc_obj.location # Capture location BEFORE action
 
-            # npc.update() now returns (action_message, purchase_info)
+            # npc.update() now returns a dictionary
             result = npc_obj.update() 
-            if result: # Ensure result is not None (e.g. if NPC is on cooldown and returns None early)
-                action_message, purchase_info = result
-                if action_message or purchase_info: # Only add if there's something to report
+
+            if result: # Ensure result is not None (e.g. if NPC is on cooldown and returns None/empty dict early)
+                action_message = result.get('message')
+                purchase_info = result.get('purchase_info')
+                flee_event = result.get('flee_event')
+                if action_message or purchase_info or flee_event: # Only add if there's something to report  
                     messages.append({'npc': npc_obj, 
                                      'action_message': action_message, 
                                      'purchase_info': purchase_info,
+                                     'flee_event': flee_event,
                                      'original_location_for_action': original_location})
         return messages
+
