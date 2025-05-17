@@ -90,6 +90,24 @@ class GameManager:
         park.add_object_to_grid(zippy, 1, 8)
         self.npc_manager.add_npc(zippy)
 
+
+        # NPC3: Far from Zippy in Park
+        gus_gus_coords = park.get_global_coordinates(5,5)
+        gus_gus = NPC(name="Gus-Gus", description="A robotic cow.", start_coords=gus_gus_coords, area=park, money=50) # Gus-Gus has more money
+        # gus_gus.set_location(park, 5, 5)
+        park.add_object_to_grid(gus_gus, 5, 5)
+        self.npc_manager.add_npc(gus_gus)
+
+        # NPC3: Next to Gus-Gus in Park
+        abertathur_coords = park.get_global_coordinates(6,5)
+        abertathur = NPC(name="Abertathur", description="An old genie.", start_coords=abertathur_coords, area=park, money=75) # Abertathur has more money
+        # abertathur.set_location(park, 6, 5)
+        park.add_object_to_grid(abertathur, 6, 5)
+        self.npc_manager.add_npc(abertathur)
+
+
+
+
         # Create and place a Computer
         stock_computer = Computer(name="Stock Terminal", description="A terminal for trading stocks.")
         # Place it in the shop, for example at grid (1,1)
