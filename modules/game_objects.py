@@ -192,6 +192,27 @@ class Computer(GameObject):
         else:
             print(f"Debug: Attempted to record sale for unknown stock symbol: {symbol}")
 
+class InfluenceSource(GameObject):
+    """
+    Represents an object that can influence NPC behavior, like an advertisement.
+    """
+    def __init__(self, name, description, coordinates=None,
+                 influence_message="A strange urge washes over you...",
+                 target_item_name=None, # Name of the item this influence promotes
+                 influence_radius=3,    # How close an NPC needs to be (grid units)
+                 influence_strength=0.5, # Chance (0.0 to 1.0) to affect an NPC
+                 properties=None):
+        super().__init__(name, description, coordinates, properties)
+        self.influence_message = influence_message
+        self.target_item_name = target_item_name
+        self.influence_radius = influence_radius
+        self.influence_strength = influence_strength
+
+    def interact(self, player):
+        """Player interaction with an influence source."""
+        # Player might just observe it, or it could have a different effect on them.
+        print(f"You examine the {self.name}. {self.description}")
+        return None
 # Simplified GameObjectManager - not strictly necessary if we create objects directly
 # but can be useful for consistency or future expansion.
 class GameObjectManager:

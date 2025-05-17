@@ -10,7 +10,7 @@ from .area import Area, AreaManager
 from .item import Item, ItemManager
 from .npc import NPC, NPCManager
 from .coordinates import Coordinates
-from .game_objects import Computer # Import Computer
+from .game_objects import Computer, InfluenceSource # Import Computer and InfluenceSource
 
 class OutputMonitor:
     """
@@ -112,6 +112,15 @@ class GameManager:
         shop.add_item_to_shop(shop_water_prototype, price=1.50, quantity=float('inf')) # Unlimited water
 
 
+        # Create an Influence Source (e.g., an advertisement)
+        apple_advert = InfluenceSource(
+            name="Shiny Apple Poster",
+            description="A vibrant poster exclaiming 'An Apple a Day Keeps the Doctor Away! Buy Apples!'",
+            target_item_name="Apple", # Must match the name in shop_stock (case-insensitive later)
+            influence_radius=4,  # NPCs within 4 grid cells might see it
+            influence_strength=0.75 # 75% chance to be influenced if noticed
+        )
+        park.add_object_to_grid(apple_advert, 7, 7) # Place the poster in the park
         # Create NPCs
         # NPC1: Near Item1 and Item2 in Park, has some money
         robo_coords = park.get_global_coordinates(3,2) # Robo starts at (3,2)
@@ -369,9 +378,10 @@ class GameManager:
         #for computer in self.computers:
         #    computer.update_stock_prices() # This will print changes if any
         
+        # --- Initialize sets to track processed NPCs for different message types ---
         processed_npc_ids_for_message = set() # Tracks NPCs whose flee actions are consolidated and printed
         
-        npc_updates = self.npc_manager.update_all_npcs()
+        npc_updates = self.npc_manager.update_all_npcs(self.game_turn)
 
         # --- Consolidate Fleeing Messages ---
         if npc_updates:
@@ -415,8 +425,67 @@ class GameManager:
                 if consolidated_message: # Check if a message was actually formed
                     print(consolidated_message)
 
+        # --- Consolidate Thematically Similar NPC Actions ---
+        processed_npc_ids_for_thematic_grouping = set()
+        thematic_action_groups = {} # Key: action_type, Value: list of {'npc_id', 'npc_name', **details}
+
+        if npc_updates:
+            for update_data in npc_updates:
+                npc = update_data['npc']
+                structured_details = update_data.get('structured_action_details')
+                original_location = update_data.get('original_location_for_action')
+
+                # Skip if already processed by flee grouping or if no structured details
+                if npc.id in processed_npc_ids_for_message or not structured_details:
+                    continue
+
+                if original_location: # Ensure there's an original location
+                    action_is_visible = (npc.location == self.player.current_area or \
+                                         (original_location == self.player.current_area and npc.location != self.player.current_area))
+                    
+                    if action_is_visible:
+                        action_type = structured_details['type']
+                        action_data_for_grouping = {
+                            'npc_id': npc.id,
+                            'npc_name': npc.name,
+                            **structured_details # Unpack all other details like target_coords, item_name
+                        }
+                        thematic_action_groups.setdefault(action_type, []).append(action_data_for_grouping)
+
+            for action_type, actions_data_list in thematic_action_groups.items():
+                if len(actions_data_list) >= 2: # Only group if 2 or more
+                    consolidated_message = ""
+                    if action_type == 'spotted_and_ran_to_coords':
+                        names = [data['npc_name'] for data in actions_data_list]
+                        
+                        if len(names) == 2:
+                            name_list_str = f"{names[0]} and {names[1]}"
+                        else: # >= 3
+                            name_list_str = ", ".join(names[:-2]) + f", {names[-2]}, and {names[-1]}" if len(names) > 2 else ", ".join(names[:-1]) + f", and {names[-1]}"
+
+                        first_part = f"{name_list_str} each spotted something and ran."
+                        
+                        individual_clauses = []
+                        for data in actions_data_list:
+                            item_info = f" towards {data['item_name']}" if data.get('item_name') else ""
+                            individual_clauses.append(f"{data['npc_name']} ran to {data['target_coords']}{item_info}")
+                        
+                        if len(actions_data_list) == 2:
+                            second_part = f" {individual_clauses[0]} while {individual_clauses[1]}."
+                        else: # >= 3
+                            second_part = " " + "; ".join(individual_clauses) + "."
+                            
+                        consolidated_message = first_part + second_part
+                    
+                    # Add other action_type handlers here in the future
+
+                    if consolidated_message:
+                        print(consolidated_message)
+                        for data in actions_data_list: # Mark these NPCs as processed
+                            processed_npc_ids_for_thematic_grouping.add(data['npc_id'])
+
         # --- Consolidate General NPC Action Messages ---
-        # This set tracks NPCs whose general actions are consolidated and printed
+        # This set tracks NPCs whose general actions are consolidated by identical suffix
         processed_npc_ids_for_action_grouping = set()
         action_message_groups = {} # Key: (message_suffix, original_location_obj), Value: list of npc_names
 
@@ -426,8 +495,9 @@ class GameManager:
                 action_message = update_data.get('action_message')
                 original_location = update_data.get('original_location_for_action') # Area object where action occurred
 
-                # Skip if this NPC's action was already part of a consolidated flee message
-                if npc.id in processed_npc_ids_for_message:
+                # Skip if already processed by flee or thematic grouping
+                if npc.id in processed_npc_ids_for_message or \
+                   npc.id in processed_npc_ids_for_thematic_grouping:
                     continue
 
                 if action_message and original_location:
@@ -485,7 +555,8 @@ class GameManager:
                 # Print any action messages that were not handled by flee grouping or general action grouping
                 if action_message and \
                    npc.id not in processed_npc_ids_for_message and \
-                   npc.id not in processed_npc_ids_for_action_grouping:
+                   npc.id not in processed_npc_ids_for_thematic_grouping and \
+                   npc.id not in processed_npc_ids_for_action_grouping: # Check all three sets
                     
                     print_this_individual_message = False
                     if npc.location == self.player.current_area: # NPC is currently in player's area
