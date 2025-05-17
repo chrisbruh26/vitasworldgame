@@ -188,7 +188,7 @@ class Computer(GameObject):
         """Records a sale amount for a given stock symbol to influence next price update."""
         if symbol in self.stock_market:
             self.stock_market[symbol]["recent_sales_value"] = self.stock_market[symbol].get("recent_sales_value", 0.0) + sale_value
-            print(f"Debug: Recorded ${sale_value:.2f} sales for {symbol}.") # Debug message
+            #print(f"Debug: Recorded ${sale_value:.2f} sales for {symbol}.") # Debug message
         else:
             print(f"Debug: Attempted to record sale for unknown stock symbol: {symbol}")
 

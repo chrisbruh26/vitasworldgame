@@ -4,12 +4,41 @@ Game Manager module for the game.
 Handles game state, setup, and command processing.
 """
 import random
+import sys # Required for stdout manipulation
 from .player import Player
 from .area import Area, AreaManager
 from .item import Item, ItemManager
 from .npc import NPC, NPCManager
 from .coordinates import Coordinates
 from .game_objects import Computer # Import Computer
+
+class OutputMonitor:
+    """
+    A wrapper for sys.stdout to monitor if any actual text is written.
+    """
+    def __init__(self, original_stdout):
+        self.original_stdout = original_stdout
+        self.texts_buffer = [] # Stores stripped text lines
+
+    def write(self, text):
+        # Add stripped, non-empty text to buffer
+        stripped_text = text.strip()
+        if stripped_text:
+            self.texts_buffer.append(stripped_text)
+        return self.original_stdout.write(text)
+
+    def flush(self):
+        return self.original_stdout.flush()
+
+    def reset(self):
+        """Clears the text buffer."""
+        self.texts_buffer.clear()
+
+    def get_buffered_texts_and_reset(self):
+        """Returns a copy of buffered texts and clears the buffer."""
+        texts = list(self.texts_buffer)
+        self.texts_buffer.clear()
+        return texts
 
 class GameManager:
     """Manages the overall game state and systems."""
@@ -21,6 +50,14 @@ class GameManager:
         self.running = True
         self.computers = [] # Keep track of all computer objects
         self.game_turn = 0
+        self._AMBIENT_NO_EVENT_MESSAGES = [
+            "Time passes.",
+            "The world is quiet for a moment.",
+            "You take a breath; nothing remarkable happens right now.",
+            "The air is still.",
+            "A moment of calm.",
+        ]
+        # self.output_monitor will be initialized in run() or here if preferred
 
     def initialize_game(self):
         """Initialize the game with hardcoded areas, items, NPCs for testing."""
@@ -152,7 +189,7 @@ class GameManager:
                 item_to_buy = " ".join(args)
                 success, bought_item, price, stock_symbol = self.player.buy_item(item_to_buy)
                 if success and stock_symbol:
-                    print(f"DEBUG: Purchase of {bought_item.name} for ${price} at {self.player.current_area.name} (Stock: {stock_symbol}) noted.")
+                    #print(f"DEBUG: Purchase of {bought_item.name} for ${price} at {self.player.current_area.name} (Stock: {stock_symbol}) noted.")
                     for computer in self.computers:
                         if hasattr(computer, 'record_sale_for_stock'):
                             computer.record_sale_for_stock(stock_symbol, price)
@@ -462,7 +499,7 @@ class GameManager:
                 if purchase_info and purchase_info.get('stock_symbol'):
                     stock_symbol = purchase_info['stock_symbol'] 
                     price = purchase_info['price']                     
-                    print(f"DEBUG: NPC Purchase by {npc.name} of {purchase_info['item_name']} for ${price} (Stock: {stock_symbol}) noted.")
+                    #print(f"DEBUG: NPC Purchase by {npc.name} of {purchase_info['item_name']} for ${price} (Stock: {stock_symbol}) noted.")
                     for computer in self.computers:
                         if hasattr(computer, 'record_sale_for_stock'):
                             computer.record_sale_for_stock(stock_symbol, price)
@@ -471,14 +508,37 @@ class GameManager:
         """Main game loop."""
         print("\nWelcome to the Simplified Game!")
         print("Type 'quit' to exit.")
-        
+
+        original_stdout = sys.stdout
+        output_monitor = OutputMonitor(original_stdout)
+        sys.stdout = output_monitor
+
         while self.running:
+            # The input() prompt itself will write to the monitor.
+            # We reset the monitor's flag *after* the prompt and *before* game logic.
             command_input = input("\n> ").strip()
+            
+            output_monitor.reset() # Reset for game logic output for this turn
+
             if command_input:
                 self.process_command(command_input)
                 if self.running: # Don't update world if quit command was issued
                     self.update_world() 
             elif self.running: # If empty input, still update world (pass turn)
                  self.update_world()
+            
+            buffered_texts = output_monitor.get_buffered_texts_and_reset()
 
-        print("Thanks for playing!")
+            if self.running:
+                # Scenario 1: Absolutely nothing was printed by game logic this turn.
+                if not buffered_texts:
+                    print(random.choice(self._AMBIENT_NO_EVENT_MESSAGES))
+                # Scenario 2: Only a basic player movement confirmation or failure was printed.
+                elif len(buffered_texts) == 1 and \
+                     (buffered_texts[0].startswith("You move ") or \
+                      buffered_texts[0] == "You can't go that way."):
+                    print(random.choice(self._AMBIENT_NO_EVENT_MESSAGES))
+                # Otherwise, enough happened, or a different kind of single message was printed.
+
+        sys.stdout = original_stdout # Restore original stdout
+        print("Thanks for playing!") # This goes to the original stdout

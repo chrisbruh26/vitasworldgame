@@ -3,6 +3,7 @@ Player module for the game.
 Handles the player character and their interactions with the game world.
 """
 
+import random
 from .coordinates import Coordinates
 from .item import Item
 from .npc import NPC # Moved import here
@@ -66,8 +67,8 @@ class Player:
         other_game_objects_here = [obj for obj in objects_here if not isinstance(obj, Item) and not isinstance(obj, NPC)]
         if other_game_objects_here:
             print("Objects here:")
-            for obj in other_game_objects_here: # Corrected to iterate over other_game_objects_here
-                print(f"  - {obj.name}: {obj.description}")
+            for game_obj in other_game_objects_here: # Corrected to iterate over other_game_objects_here
+                print(f"  - {game_obj.name}: {game_obj.description}")
         
         # Display NPCs at current position
         npcs_here = [obj for obj in objects_here if isinstance(obj, NPC)] # NPC is now known
@@ -113,6 +114,7 @@ class Player:
 
         grid_x, grid_y = self.get_grid_position()
         new_grid_x, new_grid_y = grid_x, grid_y
+        moved_within_area = False
 
         if direction == "north": new_grid_y += 1
         elif direction == "south": new_grid_y -= 1
@@ -120,6 +122,7 @@ class Player:
         elif direction == "west": new_grid_x -= 1
         else: # Check for area connection by direction name
             if direction in self.current_area.connections:
+                # Moving to a new area
                 self.set_current_area(self.current_area.connections[direction])
                 return
             print(f"Unknown direction: {direction}. Try north, south, east, west, or an exit name.")
@@ -128,19 +131,49 @@ class Player:
         if self.current_area.is_valid_grid_position(new_grid_x, new_grid_y):
             self.coordinates = self.current_area.get_global_coordinates(new_grid_x, new_grid_y)
             print(f"You move {direction}.")
-            self.look_around() # Show what's at the new position
+            moved_within_area = True
         elif direction in self.current_area.connections: # Edge of grid, try to use connection
+             # Moving to a new area
              self.set_current_area(self.current_area.connections[direction])
+             return
         else:
             print("You can't go that way.")
+            return
 
+        if moved_within_area:
+            # Check what's at the new location for a concise update
+            current_gx, current_gy = self.get_grid_position() # Get updated grid position
+            objects_here = self.current_area.get_objects_at_grid_cell(current_gx, current_gy)
+            items_here = [obj for obj in objects_here if isinstance(obj, Item)]
+            npcs_here = [obj for obj in objects_here if isinstance(obj, NPC)]
+            other_interactive_objects_here = [obj for obj in objects_here if not isinstance(obj, (Item, NPC))]
+
+            found_something_notable = False
+            if items_here:
+                item_names = ", ".join([item.name for item in items_here])
+                print(f"You notice {item_names} on the ground here.")
+                found_something_notable = True
+            
+            if npcs_here:
+                npc_names = ", ".join([npc.name for npc in npcs_here])
+                print(f"{npc_names} {'is' if len(npcs_here) == 1 else 'are'} here.")
+                found_something_notable = True
+
+            if other_interactive_objects_here:
+                object_names = ", ".join([obj.name for obj in other_interactive_objects_here])
+                print(f"There is a {object_names} here.")
+                found_something_notable = True
+            
+            # Removed the else block that printed _NO_CHANGE_MESSAGES.
+            # The GameManager will now handle generic "nothing happened" messages
+            # if the entire turn was uneventful.
     def teleport(self, target_area, grid_x=None, grid_y=None):
         """Teleport to a specific area, optionally to specific grid coordinates."""
         if not target_area:
             print("Teleport target area not found.")
             return
         self.set_current_area(target_area, grid_x, grid_y)
-        print(f"You teleport to {target_area.name}.")
+#        print(f"You teleport to {target_area.name}.") # don't need this because set_current_area already prints it
 
     def add_item(self, item):
         """Add an item to the player's inventory."""
