@@ -14,12 +14,12 @@ from .game_objects import Computer # Import Computer
 class GameManager:
     """Manages the overall game state and systems."""
     def __init__(self):
-        self.player = Player(start_money=100)
+        self.player = Player(start_money=500)
         self.area_manager = AreaManager()
         self.item_manager = ItemManager() # Simplified, items created directly for now
         self.npc_manager = NPCManager()
         self.running = True
-        # self.object_manager = GameObjectManager() # Can add if we use it for Computer creation
+        self.computers = [] # Keep track of all computer objects
         self.game_turn = 0
 
     def initialize_game(self):
@@ -33,6 +33,7 @@ class GameManager:
 
         shop_origin = Coordinates(20,0,0) # Shop is to the east of the park
         shop = Area(name="General Store", description="A small store with various goods.", area_origin_coords=shop_origin, grid_width=8, grid_length=8)
+        shop.associated_stock_symbol = "MALL" # Vita Mall Corp stock
         self.area_manager.add_area(shop)
 
         # Connect Areas
@@ -92,6 +93,7 @@ class GameManager:
         stock_computer = Computer(name="Stock Terminal", description="A terminal for trading stocks.")
         # Place it in the shop, for example at grid (1,1)
         shop.add_object_to_grid(stock_computer, 1, 1)
+        self.computers.append(stock_computer) # Add to list for updates
 
         # Place Player
         self.player.set_current_area(park, 1, 1)
@@ -129,7 +131,12 @@ class GameManager:
         elif action == "buy":
             if args:
                 item_to_buy = " ".join(args)
-                self.player.buy_item(item_to_buy)
+                success, bought_item, price, stock_symbol = self.player.buy_item(item_to_buy)
+                if success and stock_symbol:
+                    print(f"DEBUG: Purchase of {bought_item.name} for ${price} at {self.player.current_area.name} (Stock: {stock_symbol}) noted.")
+                    for computer in self.computers:
+                        if hasattr(computer, 'record_sale_for_stock'):
+                            computer.record_sale_for_stock(stock_symbol, price)
             else:
                 print("Buy what? (e.g., buy apple)")
 
@@ -227,6 +234,10 @@ class GameManager:
     def update_world(self):
         """Update game state, like NPC actions."""
         self.game_turn += 1
+
+        # Update stock prices on all computers
+        for computer in self.computers:
+            computer.update_stock_prices() # This will print changes if any
         
         npc_action_messages = self.npc_manager.update_all_npcs()
         if npc_action_messages:

@@ -9,7 +9,7 @@ from .npc import NPC # Moved import here
 
 class Player:
     """Player class for the game."""
-    def __init__(self, name="Vita", start_money=100):
+    def __init__(self, name="Vita", start_money=500):
         self.name = name
         self.inventory = []
         self.current_area = None
@@ -203,10 +203,10 @@ class Player:
         """Attempt to buy an item from the current area's shop."""
         if not self.current_area:
             print("You are not in any area to buy from.")
-            return
+            return False, None, 0, None
         if not hasattr(self.current_area, 'shop_stock') or not self.current_area.shop_stock:
             print("This place doesn't seem to be selling anything.")
-            return
+            return False, None, 0, None
 
         item_instance, price = self.current_area.process_purchase(item_name_query, self.money)
 
@@ -214,6 +214,7 @@ class Player:
             self.money -= price
             self.add_item(item_instance) # add_item already prints a message
             print(f"You paid ${price:.2f}. Your money: ${self.money:.2f}")
+            return True, item_instance, price, self.current_area.associated_stock_symbol
         else:
             # More specific feedback could come from process_purchase if we enhance it
             # For now, a general failure message.
@@ -221,6 +222,7 @@ class Player:
             if not details: print(f"The shop doesn't have '{item_name_query}'.")
             elif details['stock'] <= 0: print(f"'{item_name_query}' is out of stock.")
             elif self.money < details['price']: print(f"You can't afford '{item_name_query}'. It costs ${details['price']:.2f}, you have ${self.money:.2f}.")
+            return False, None, 0, None
 
     def view_portfolio(self):
         if not self.stock_portfolio:
