@@ -29,6 +29,7 @@ class NPC:
         self.is_fleeing = False
         self.flee_timer = 0
         self.recently_failed_to_buy = {} # item_key_lower: expiry_turn
+        self.shopping_frustration_cooldown = 0 # Turns to wait before trying to shop again after a failure
 
     def set_location(self, area, grid_x=None, grid_y=None):
         """Places the NPC in an area and on its grid."""
@@ -132,6 +133,9 @@ class NPC:
         if self.action_cooldown > 0:
             self.action_cooldown -=1
             return
+        
+        if self.shopping_frustration_cooldown > 0:
+            self.shopping_frustration_cooldown -= 1
 
         # Clear expired items from recently_failed_to_buy list
         for item_key, expiry_turn in list(self.recently_failed_to_buy.items()):
@@ -260,8 +264,11 @@ class NPC:
 
         # 0. Consider Shopping if in a shop area
         if hasattr(self.location, 'shop_stock') and self.location.shop_stock:
-            if random.random() < self.desire_to_shop_chance: # Small chance each turn to decide to shop
+            if self.shopping_frustration_cooldown <= 0 and \
+               random.random() < self.desire_to_shop_chance: # Consider shopping
                 action_message, purchase_info = self.attempt_to_buy_from_shop(current_game_turn)
+                if not purchase_info and action_message: # If shopping failed (no purchase, but got a message)
+                    self.shopping_frustration_cooldown = random.randint(2, 4) # Get frustrated for a few turns
                 return {'message': action_message, 'purchase_info': purchase_info, 'flee_event': None, 'structured_action_details': None}
 
         # 1. Check items at current location (picking up from floor)
