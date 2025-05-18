@@ -105,7 +105,7 @@ class GameManager:
 
         # Item4: In the park, free
         yellow_star = Item(name="Yellow Star", description="A bright yellow star.", value=0, coordinates=park.get_global_coordinates(5,5))
-        park.add_object_to_grid(yellow_star, 5, 5)
+        park.add_object_to_grid(yellow_star, 2, 2)
 
         ysx = 5
         ysy = 5

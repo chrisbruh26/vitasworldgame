@@ -214,13 +214,19 @@ class NPC:
                        self.recently_failed_to_buy[mission_item_key] > current_game_turn + 50000: # Unaffordable
                         failed_to_acquire_mission_item = True
                     
-                    # If shopping frustration is active AND the current shopping target IS the mission item,
-                    # it implies a recent failure to acquire it (e.g., not found in shop, out of stock).
-                    if self.shopping_frustration_cooldown > 0 and \
-                       self.shopping_target_item_name and \
-                       self.shopping_target_item_name.lower() == mission_item_key:
-                        failed_to_acquire_mission_item = True
+                    # Condition 2: Frustration from trying to buy, but only if it's NOT a special free item like Yellow Star.
+                    # For Yellow Star, frustration from failing to "buy" it in a shop shouldn't end the mission.
+                    # They should continue to look on the ground.
+                    is_special_free_mission_item = (mission_item_key == "yellow star") # Expand if more such items
 
+                    if not is_special_free_mission_item:
+                        # If shopping frustration is active AND the current shopping target IS the mission item,
+                        # it implies a recent failure to acquire it (e.g., not found in shop, out of stock).
+                        if self.shopping_frustration_cooldown > 0 and \
+                           self.shopping_target_item_name and \
+                           self.shopping_target_item_name.lower() == mission_item_key:
+                            failed_to_acquire_mission_item = True
+                    
                     if failed_to_acquire_mission_item:
                         msg = f"{self.name} gives up on the mission to deliver {self.mission_item_name} as it seems unobtainable right now."
                         self.recently_processed_influences[self.active_mission_influence_id] = current_game_turn + random.randint(15, 25)
@@ -291,14 +297,10 @@ class NPC:
             if self.money < self.MIN_MONEY_TO_CONSIDER_SHOPPING: # General check for shopping
                  can_be_influenced_financially = False
 
-            if not can_be_influenced_financially and (not hasattr(obj, 'action_type') or obj.action_type == "shop"):
-                 pass # Skip "shop" influence if broke
-            else:
-                for obj_coords, objects_in_cell in self.location.grid_objects.items():
-                    for obj in objects_in_cell:
-                        if isinstance(obj, InfluenceSource):
+            for obj_coords, objects_in_cell in self.location.grid_objects.items():
+                for obj in objects_in_cell:
+                    if isinstance(obj, InfluenceSource):
                             source_gx, source_gy = obj_coords # These are already grid coordinates
-                            
                             # Check if recently processed this specific influence
                             if obj.id in self.recently_processed_influences:
                                 continue # Ignore this influence for now
@@ -307,7 +309,7 @@ class NPC:
     
                             if dist_to_source <= obj.influence_radius:
                                 if random.random() < obj.influence_strength:
-                                    if obj.action_type == "shop" and can_be_influenced_financially:
+                                    if obj.action_type == "shop" and can_be_influenced_financially and not self.current_mission_type:
                                         # Check if already targeting this or if it's a new influence
                                         if self.shopping_target_item_name != obj.target_item_name:
                                             self.active_influence_source_id = obj.id # Store which influence caused this
