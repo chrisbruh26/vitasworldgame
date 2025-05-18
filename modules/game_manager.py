@@ -74,12 +74,20 @@ class GameManager:
         shop.is_shelter = True # The store is a shelter
         self.area_manager.add_area(shop)
 
+        garden_origin = Coordinates(0, -20, 0) # Garden is south of the park
+        garden = Area(name="Gray Bird Garden", description="A serene, slightly unsettling garden. A large, smooth stone sits in the center.", area_origin_coords=garden_origin, grid_width=7, grid_length=7)
+        self.area_manager.add_area(garden)
+
         # Connect Areas
         # Park's east exit leads to Shop's west entrance
         self.area_manager.connect_areas(park.id, "east", shop.id)
         # Area.add_connection automatically adds reverse, so shop.west should connect to park.east
 
+        # Park's south exit leads to Garden's north entrance
+        self.area_manager.connect_areas(park.id, "south", garden.id)
+
         # Create Items
+        # ... (existing item creation) ...
         # Item1: Near NPC1 in Park
         red_ball = Item(name="Red Ball", description="A bouncy red ball.", value=5, coordinates=park.get_global_coordinates(3,3))
         park.add_object_to_grid(red_ball, 3, 3)
@@ -98,6 +106,14 @@ class GameManager:
         # Item4: In the park, free
         yellow_star = Item(name="Yellow Star", description="A bright yellow star.", value=0, coordinates=park.get_global_coordinates(5,5))
         park.add_object_to_grid(yellow_star, 5, 5)
+
+        ysx = 5
+        ysy = 5
+        for i in range(5):
+            ysx+=1
+            ysy+=1
+            park.add_object_to_grid(yellow_star, ysx, ysy)
+
         self.item_manager.items_master_list[yellow_star.id] = yellow_star
 
         # Item5: In the shop
@@ -112,15 +128,30 @@ class GameManager:
         shop.add_item_to_shop(shop_water_prototype, price=1.50, quantity=float('inf')) # Unlimited water
 
 
-        # Create an Influence Source (e.g., an advertisement)
+        # Create Influence Sources
+        # 1. Shopping Influence
         apple_advert = InfluenceSource(
             name="Shiny Apple Poster",
             description="A vibrant poster exclaiming 'An Apple a Day Keeps the Doctor Away! Buy Apples!'",
+            action_type="shop",
             target_item_name="Apple", # Must match the name in shop_stock (case-insensitive later)
             influence_radius=4,  # NPCs within 4 grid cells might see it
             influence_strength=0.75 # 75% chance to be influenced if noticed
         )
         park.add_object_to_grid(apple_advert, 7, 7) # Place the poster in the park
+
+        # 2. Delivery Influence for Gray Bird Garden
+        offering_whisper = InfluenceSource(
+            name="Mysterious Whisper Stone",
+            description="A faint, almost inaudible whisper seems to emanate from this oddly smooth stone, urging devotion.",
+            action_type="deliver_item",
+            delivery_item_name="Yellow Star", # The item to be delivered
+            delivery_target_area_name="Gray Bird Garden",
+            delivery_target_coords=(garden.grid_width // 2, garden.grid_length // 2), # Center of the garden
+            influence_radius=5,
+            influence_strength=0.60
+        )
+        park.add_object_to_grid(offering_whisper, 2, 8) # Place this influence in the Park
         # Create NPCs
         # NPC1: Near Item1 and Item2 in Park, has some money
         robo_coords = park.get_global_coordinates(3,2) # Robo starts at (3,2)

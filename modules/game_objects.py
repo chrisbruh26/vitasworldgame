@@ -198,14 +198,28 @@ class InfluenceSource(GameObject):
     Represents an object that can influence NPC behavior, like an advertisement.
     """
     def __init__(self, name, description, coordinates=None,
-                 influence_message="A strange urge washes over you...",
-                 target_item_name=None, # Name of the item this influence promotes
-                 influence_radius=3,    # How close an NPC needs to be (grid units)
+                 influence_message="A strange urge washes over you...", # General message if no specific action
+                 action_type="shop", # "shop" or "deliver_item"
+                 # For "shop" action_type:
+                 target_item_name=None, # Name of the item this influence promotes for shopping
+                 # For "deliver_item" action_type:
+                 delivery_item_name=None,    # Name of the item to be acquired and delivered
+                 delivery_target_area_name=None, # Name of the area for delivery
+                 delivery_target_coords=None,    # (gx, gy) tuple for the exact drop-off spot
+                 # Common properties:
+                 influence_radius=3,     # How close an NPC needs to be (grid units)
                  influence_strength=0.5, # Chance (0.0 to 1.0) to affect an NPC
                  properties=None):
         super().__init__(name, description, coordinates, properties)
         self.influence_message = influence_message
+        self.action_type = action_type
+        
         self.target_item_name = target_item_name
+        
+        self.delivery_item_name = delivery_item_name
+        self.delivery_target_area_name = delivery_target_area_name
+        self.delivery_target_coords = delivery_target_coords
+
         self.influence_radius = influence_radius
         self.influence_strength = influence_strength
 

@@ -34,6 +34,14 @@ class NPC:
         self.active_influence_source_id = None # ID of the influence source for the current shopping_target_item_name
         self.MIN_MONEY_TO_CONSIDER_SHOPPING = 1.50 # Minimum money to even attempt shopping
 
+        # Mission-related attributes for item delivery
+        self.current_mission_type = None # e.g., "deliver_item"
+        self.mission_item_name = None    # Name of the item to acquire/deliver
+        self.mission_target_area_name = None # Name of the area to deliver to
+        self.mission_target_coords = None    # (gx, gy) tuple for delivery spot
+        self.mission_phase = None            # e.g., "acquire_item", "travel_to_area", "travel_to_spot", "deliver"
+        self.active_mission_influence_id = None # ID of the influence source that assigned the mission
+
     def set_location(self, area, grid_x=None, grid_y=None):
         """Places the NPC in an area and on its grid."""
         if self.location and self.location != area : # If changing areas
@@ -179,6 +187,85 @@ class NPC:
         if my_gx is None or my_gy is None: # NPC not properly placed
             return {'message': None, 'purchase_info': None, 'flee_event': None}
         
+        # --- MISSION EXECUTION LOGIC (Highest Priority if active) ---
+        if self.current_mission_type == "deliver_item":
+            # Check if mission item is in inventory
+            mission_item_in_inventory = None
+            for item_in_inv in self.inventory:
+                if item_in_inv.name.lower() == self.mission_item_name.lower():
+                    mission_item_in_inventory = item_in_inv
+                    break
+
+            if self.mission_phase == "acquire_item":
+                if mission_item_in_inventory:
+                    self.mission_phase = "travel_to_area"
+                    # Fall through to next phase in the same turn if possible, or wait for next turn
+                else:
+                    # Try to acquire the item. Set shopping target.
+                    # This will leverage existing shopping/pickup logic in subsequent parts of this method.
+                    self.shopping_target_item_name = self.mission_item_name
+                    self.is_currently_shopping = True # Actively seek it out
+
+                    # Check if mission item has become unobtainable or if NPC is too frustrated to get it
+                    failed_to_acquire_mission_item = False
+                    mission_item_key = self.mission_item_name.lower()
+
+                    if mission_item_key in self.recently_failed_to_buy and \
+                       self.recently_failed_to_buy[mission_item_key] > current_game_turn + 50000: # Unaffordable
+                        failed_to_acquire_mission_item = True
+                    
+                    # If shopping frustration is active AND the current shopping target IS the mission item,
+                    # it implies a recent failure to acquire it (e.g., not found in shop, out of stock).
+                    if self.shopping_frustration_cooldown > 0 and \
+                       self.shopping_target_item_name and \
+                       self.shopping_target_item_name.lower() == mission_item_key:
+                        failed_to_acquire_mission_item = True
+
+                    if failed_to_acquire_mission_item:
+                        msg = f"{self.name} gives up on the mission to deliver {self.mission_item_name} as it seems unobtainable right now."
+                        self.recently_processed_influences[self.active_mission_influence_id] = current_game_turn + random.randint(15, 25)
+                        self._clear_mission_state()
+                        return {'message': msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+
+            elif self.mission_phase == "travel_to_area":
+                if not mission_item_in_inventory: # Lost the item somehow? Revert to acquire.
+                    self.mission_phase = "acquire_item"
+                    # Fall through
+                elif self.location.name.lower() == self.mission_target_area_name.lower():
+                    self.mission_phase = "travel_to_spot"
+                    # Fall through
+                else:
+                    # NPC needs to change area. This will be handled by the area changing logic (section 3)
+                    # which is now mission-aware. No direct return here; let it fall through.
+                    pass # Rely on general movement for now, or specific travel logic in section 3.
+
+            elif self.mission_phase == "travel_to_spot":
+                if not mission_item_in_inventory:
+                    self.mission_phase = "acquire_item" # Lost item
+                elif self.location.name.lower() != self.mission_target_area_name.lower():
+                    self.mission_phase = "travel_to_area" # Wrong area
+                elif (my_gx, my_gy) == self.mission_target_coords:
+                    self.mission_phase = "deliver"
+                    # Fall through
+                else: # Move towards target_coords
+                    dx = 1 if self.mission_target_coords[0] > my_gx else -1 if self.mission_target_coords[0] < my_gx else 0
+                    dy = 1 if self.mission_target_coords[1] > my_gy else -1 if self.mission_target_coords[1] < my_gy else 0
+                    if self.move_on_grid(dx, dy):
+                        self.action_cooldown = 1
+                        return {'message': f"{self.name} heads towards the offering spot for {self.mission_item_name}.", 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+            
+            elif self.mission_phase == "deliver":
+                if mission_item_in_inventory:
+                    drop_msg = self.drop_item_from_inventory(mission_item_in_inventory, self.mission_target_coords[0], self.mission_target_coords[1])
+                    delivery_msg = f"{self.name} carefully places the {mission_item_in_inventory.name} at {self.mission_target_coords} in {self.location.name} as an offering. {drop_msg}"
+                    self.recently_processed_influences[self.active_mission_influence_id] = current_game_turn + random.randint(20, 40) # Longer cooldown after completing mission
+                    self._clear_mission_state()
+                    self.action_cooldown = random.randint(2,4)
+                    return {'message': delivery_msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+                else: # Lost item just before delivery
+                    self.mission_phase = "acquire_item" 
+                    # Fall through to general logic which might try to re-acquire
+
         # Early check: If influenced to shop but has no/low money, give up on the influence.
         if self.is_currently_shopping and \
            self.shopping_target_item_name and \
@@ -189,7 +276,7 @@ class NPC:
             self.is_currently_shopping = False
             if self.active_influence_source_id:
                 self.recently_processed_influences[self.active_influence_source_id] = current_game_turn + random.randint(10, 20)
-                self.active_influence_source_id = None
+                self.active_influence_source_id = None # Clear shopping influence ID
             self.shopping_frustration_cooldown = random.randint(3, 5) # Get frustrated
             # This message might be overridden if another action is taken, but sets the state.
             # No immediate return, let other logic proceed.
@@ -198,9 +285,14 @@ class NPC:
         # This check happens even if on cooldown for other actions, representing a passive perception.
         # However, the reaction (changing shopping target) might be delayed if already busy.
         if not self.is_fleeing: # Don't get influenced while panicking
-            # If NPC has very little money, they shouldn't be influenced to buy things.
-            if self.money < self.MIN_MONEY_TO_CONSIDER_SHOPPING:
-                pass # Skip influence checking for shopping if broke
+            # For "shop" type influences, skip if broke.
+            # For "deliver_item", more nuanced check below.
+            can_be_influenced_financially = True
+            if self.money < self.MIN_MONEY_TO_CONSIDER_SHOPPING: # General check for shopping
+                 can_be_influenced_financially = False
+
+            if not can_be_influenced_financially and (not hasattr(obj, 'action_type') or obj.action_type == "shop"):
+                 pass # Skip "shop" influence if broke
             else:
                 for obj_coords, objects_in_cell in self.location.grid_objects.items():
                     for obj in objects_in_cell:
@@ -215,28 +307,43 @@ class NPC:
     
                             if dist_to_source <= obj.influence_radius:
                                 if random.random() < obj.influence_strength:
-                                    # Check if already targeting this or if it's a new influence
-                                    if self.shopping_target_item_name != obj.target_item_name:
-                                        self.active_influence_source_id = obj.id # Store which influence caused this
-                                        self.shopping_target_item_name = obj.target_item_name
-                                        # Optionally, slightly increase desire to shop or make it more immediate
-                                        self.desire_to_shop_chance = min(1.0, self.desire_to_shop_chance + 0.1)
-                                        self.is_currently_shopping = True # Become more proactive
-                                        self.action_cooldown = 0 # React sooner
+                                    if obj.action_type == "shop" and can_be_influenced_financially:
+                                        # Check if already targeting this or if it's a new influence
+                                        if self.shopping_target_item_name != obj.target_item_name:
+                                            self.active_influence_source_id = obj.id # Store which influence caused this
+                                            self.shopping_target_item_name = obj.target_item_name
+                                            self.desire_to_shop_chance = min(1.0, self.desire_to_shop_chance + 0.1)
+                                            self.is_currently_shopping = True 
+                                            self.action_cooldown = 0 
+                                            
+                                            msg = f"{self.name} notices the {obj.name}. "
+                                            if obj.target_item_name:
+                                                msg += f"Suddenly, they feel a strong craving for {obj.target_item_name}!"
+                                            else:
+                                                msg += obj.influence_message
+                                            return {'message': msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+                                    
+                                    elif obj.action_type == "deliver_item" and not self.current_mission_type: # Not already on a mission
+                                        item_already_possessed = any(item.name.lower() == obj.delivery_item_name.lower() for item in self.inventory)
                                         
-                                        # Construct a message based on the influence
-                                        influence_reaction_message = f"{self.name} notices the {obj.name}. "
-                                        if obj.target_item_name:
-                                            influence_reaction_message += f"Suddenly, they feel a strong craving for {obj.target_item_name}!"
-                                        else:
-                                            influence_reaction_message += obj.influence_message
-                                        # Influence messages are standard for now, not thematically grouped yet
-                                        return {
-                                            'message': influence_reaction_message,
-                                            'purchase_info': None,
-                                            'flee_event': None,
-                                            'structured_action_details': None
-                                        }
+                                        # Determine if the item is considered "free" to acquire (e.g., specific named items like Yellow Star)
+                                        is_item_free_to_acquire = obj.delivery_item_name.lower() == "yellow star" 
+
+                                        if not item_already_possessed and not is_item_free_to_acquire and self.money < self.MIN_MONEY_TO_CONSIDER_SHOPPING:
+                                            # Can't afford to acquire the item for delivery if it's not free
+                                            continue 
+
+                                        self.current_mission_type = "deliver_item"
+                                        self.mission_item_name = obj.delivery_item_name
+                                        self.mission_target_area_name = obj.delivery_target_area_name
+                                        self.mission_target_coords = obj.delivery_target_coords
+                                        self.mission_phase = "acquire_item"
+                                        self.active_mission_influence_id = obj.id
+                                        self.action_cooldown = 0
+
+                                        msg = f"{self.name} feels a divine calling from the {obj.name}! They must find a {self.mission_item_name} and bring it to {self.mission_target_area_name}."
+                                        return {'message': msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+
         
         action_message = None
         purchase_info = None # To store details of a shop purchase
@@ -320,7 +427,21 @@ class NPC:
             return {'message': f"{self.name} seems to calm down.", 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
 
         # 0. Consider Shopping if in a shop area
-        if hasattr(self.location, 'shop_stock') and self.location.shop_stock:
+        #    BUT NOT if on a delivery mission and already have the item (or past acquire phase for other reasons)
+        can_consider_general_shopping = True
+        if self.current_mission_type == "deliver_item":
+            # If on a mission, only consider general shopping if in 'acquire_item' phase
+            # AND the shopping_target_item_name is NOT the mission item (meaning mission item acquired, but now general shopping)
+            # OR if mission_phase is not acquire_item (meaning item acquired or other phase)
+            if self.mission_phase != "acquire_item":
+                 can_consider_general_shopping = False
+            elif self.shopping_target_item_name and self.shopping_target_item_name.lower() != self.mission_item_name.lower():
+                 pass # This means mission item acquired, now considering other shopping. This is the "distraction". Let's prevent this.
+                 # Actually, if shopping_target is NOT mission item, it means they are distracted.
+                 # If mission_phase is acquire_item, shopping_target SHOULD be mission_item.
+                 # So, if mission_phase is acquire_item, this block IS for the mission item.
+
+        if can_consider_general_shopping and hasattr(self.location, 'shop_stock') and self.location.shop_stock:
             if self.money >= self.MIN_MONEY_TO_CONSIDER_SHOPPING and \
                self.shopping_frustration_cooldown <= 0 and \
                random.random() < self.desire_to_shop_chance: # Consider shopping
@@ -387,45 +508,72 @@ class NPC:
 
         # 3. If no item interaction, consider changing area
         if self.location and self.location.connections:
-            moved_to_new_area_for_shopping = False
-            # Check if NPC is actively shopping for an influenced item
-            if self.is_currently_shopping and self.shopping_target_item_name and not self.is_fleeing: # Don't shop if fleeing
-                potential_shops_to_visit = []
-                for direction, connected_area in self.location.connections.items():
-                    if hasattr(connected_area, 'shop_stock') and connected_area.shop_stock:
-                        # Check if this shop sells the target item
-                        if self.shopping_target_item_name.lower() in connected_area.shop_stock:
-                            potential_shops_to_visit.append({'direction': direction, 'area': connected_area, 'sells_target': True})
-                        else:
-                            potential_shops_to_visit.append({'direction': direction, 'area': connected_area, 'sells_target': False})
-                
-                if potential_shops_to_visit:
-                    # Prioritize shops that definitely sell the target item
-                    preferred_shops = [s for s in potential_shops_to_visit if s['sells_target']]
-                    chosen_shop_info = None
+            # --- Area Changing Logic ---
+            # Priority: 1. Mission Travel, 2. Shopping Travel, 3. Frustrated/General Wandering
 
-                    if preferred_shops:
-                        chosen_shop_info = random.choice(preferred_shops)
-                    else: # No shop confirmed to sell the item, pick any connected shop
-                        chosen_shop_info = random.choice(potential_shops_to_visit)
-                    
-                    if chosen_shop_info:
+            # 1. Mission Travel to Area
+            if self.current_mission_type == "deliver_item" and \
+               self.mission_phase == "travel_to_area" and \
+               self.location.name.lower() != self.mission_target_area_name.lower():
+                
+                best_direction_for_mission = None
+                # Prefer direct connections to the target area
+                for direction, connected_area in self.location.connections.items():
+                    if connected_area.name.lower() == self.mission_target_area_name.lower():
+                        best_direction_for_mission = direction
+                        break
+                
+                if best_direction_for_mission:
+                    new_area = self.location.connections[best_direction_for_mission]
+                    old_area_name = self.location.name
+                    self.set_location(new_area)
+                    self.action_cooldown = random.randint(1,2)
+                    msg = f"{self.name} purposefully heads from {old_area_name} towards {new_area.name} (via {best_direction_for_mission}) for their mission."
+                    return {'message': msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+                else:
+                    # No direct connection, will fall through to general wandering with high desire.
+                    pass # Fall through to general area change with boosted desire
+
+            # 2. Shopping Travel (only if not on a mission or mission is in acquire phase for that item)
+            if not (self.current_mission_type == "deliver_item" and self.mission_phase != "acquire_item"):
+                if self.is_currently_shopping and self.shopping_target_item_name and not self.is_fleeing:
+                    # ... (existing shopping travel logic to find 'chosen_shop_info') ...
+                    # This is the block that finds potential_shops_to_visit etc.
+                    # For brevity, assuming this block correctly sets chosen_shop_info
+                    potential_shops_to_visit = [] # Placeholder for actual logic
+                    for direction, connected_area in self.location.connections.items():
+                        if hasattr(connected_area, 'shop_stock') and connected_area.shop_stock:
+                            if self.shopping_target_item_name.lower() in connected_area.shop_stock:
+                                potential_shops_to_visit.append({'direction': direction, 'area': connected_area, 'sells_target': True})
+                            else:
+                                potential_shops_to_visit.append({'direction': direction, 'area': connected_area, 'sells_target': False})
+                    chosen_shop_info = None
+                    if potential_shops_to_visit:
+                        preferred_shops = [s for s in potential_shops_to_visit if s['sells_target']]
+                        if preferred_shops: chosen_shop_info = random.choice(preferred_shops)
+                        else: chosen_shop_info = random.choice(potential_shops_to_visit)
+
+                    if chosen_shop_info: # If shopping travel decided on a move
                         old_area_name = self.location.name
                         new_area = chosen_shop_info['area']
                         chosen_direction = chosen_shop_info['direction']
                         self.set_location(new_area)
                         self.action_cooldown = random.randint(1, 3) # Shorter cooldown as it's purposeful
                         action_message = f"{self.name} heads from {old_area_name} towards {new_area.name} (via {chosen_direction}), looking for {self.shopping_target_item_name}."
-                        moved_to_new_area_for_shopping = True
                         return {'message': action_message, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
 
-            # Standard wandering if not actively shopping for an influenced item or no suitable shop found
+            # 3. Frustrated / General Wandering to New Area
             current_desire_to_change_area = self.desire_to_change_area_chance
             if self.shopping_frustration_cooldown > 1: # If recently frustrated by shopping (e.g. cooldown is 2+)
                 # Significantly increase chance to leave if frustrated
                 current_desire_to_change_area = max(current_desire_to_change_area, random.uniform(0.60, 0.85)) 
+            elif self.current_mission_type == "deliver_item" and \
+               self.mission_phase == "travel_to_area" and \
+               self.location.name.lower() != self.mission_target_area_name.lower():
+                # If mission travel didn't find a direct route, desire is high.
+                current_desire_to_change_area = max(current_desire_to_change_area, 0.90) 
 
-            if not moved_to_new_area_for_shopping and random.random() < current_desire_to_change_area:
+            if random.random() < current_desire_to_change_area:
                 available_directions = list(self.location.connections.keys())
                 if available_directions:
                     chosen_direction = random.choice(available_directions)
@@ -444,14 +592,6 @@ class NPC:
             self.action_cooldown = random.randint(1,3) # Cooldown after attempting to wander
             if action_message: # Only return if they actually wandered
                 return {'message': action_message, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
-
-        # --- TEMPORARY TEST: NPC Dropping Item ---
-        if self.inventory and random.random() < 0.1: # 10% chance to drop an item if they have one
-            item_to_drop = random.choice(self.inventory)
-            drop_message = self.drop_item_by_name_at_current_location(item_to_drop.name)
-            self.action_cooldown = 2
-            return {'message': drop_message, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
-        # --- END TEMPORARY TEST ---
 
         return {'message': None, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None} # Default empty action
 
@@ -560,6 +700,15 @@ class NPC:
         self.flee_timer = duration
         self.action_cooldown = 0 # Act immediately
 
+    def _clear_mission_state(self):
+        """Helper to reset all mission-related attributes."""
+        self.current_mission_type = None
+        self.mission_item_name = None
+        self.mission_target_area_name = None
+        self.mission_target_coords = None
+        self.mission_phase = None
+        self.active_mission_influence_id = None # This ID is for the mission influence, distinct from shopping one
+
     def get_status_info(self, current_game_turn):
         """Returns a string with the NPC's current status for debugging."""
         status = [
@@ -578,6 +727,7 @@ class NPC:
         status.append(f"Shopping Frustration Cooldown: {self.shopping_frustration_cooldown} turns")
         status.append(f"Is Currently Shopping: {self.is_currently_shopping}")
         status.append(f"Shopping Target Item: {self.shopping_target_item_name if self.shopping_target_item_name else 'None'}")
+        status.append(f"Active Shopping Influence ID: {self.active_influence_source_id if self.active_influence_source_id else 'None'}") # For shopping
         status.append(f"Is Fleeing: {self.is_fleeing}, Flee Timer: {self.flee_timer} turns")
         status.append("Recently Failed to Buy (Item: Expires in X turns):")
         if self.recently_failed_to_buy:
@@ -585,6 +735,12 @@ class NPC:
                 status.append(f"  - {item_key}: Expires in {expiry_turn - current_game_turn} turns (at turn {expiry_turn})")
         else:
             status.append("  - None")
+        status.append("Recently Processed Influences (Source ID: Expires in X turns):")
+        if self.recently_processed_influences:
+            for source_id, expiry_turn in self.recently_processed_influences.items():
+                status.append(f"  - {source_id}: Expires in {expiry_turn - current_game_turn} turns (at turn {expiry_turn})")
+        status.append(f"Current Mission: {self.current_mission_type}, Item: {self.mission_item_name}, Target: {self.mission_target_area_name} at {self.mission_target_coords}, Phase: {self.mission_phase}")
+        status.append(f"Active Mission Influence ID: {self.active_mission_influence_id if self.active_mission_influence_id else 'None'}")
         status.append(f"--- End Status (Game Turn: {current_game_turn}) ---")
         return "\n".join(status)
 
