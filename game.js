@@ -36,15 +36,54 @@ class Item extends GameObject {
 class InfluenceSource extends GameObject {
     constructor(name, description, actionType, influenceRadius, influenceStrength) {
         super(name, description);
-        this.actionType = actionType;
+        this.actionType = actionType; // 'buy', 'sell', 'move', 'deliver'
         this.influenceRadius = influenceRadius;
         this.influenceStrength = influenceStrength;
         
         // Additional properties based on action type
-        this.targetItemName = null;
-        this.deliveryItemName = null;
+        this.targetItemName = null;      // For 'buy' influence
+        this.targetAreaName = null;      // For 'move' influence
+        this.deliveryItemName = null;    // For 'deliver' influence
         this.deliveryTargetAreaName = null;
         this.deliveryTargetCoords = null;
+        this.coordinates = null;         // Position in the world
+    }
+    
+    // Set target item for 'buy' influence
+    setTargetItem(itemName) {
+        this.targetItemName = itemName;
+        return this;
+    }
+    
+    // Set target area for 'move' influence
+    setTargetArea(areaName) {
+        this.targetAreaName = areaName;
+        return this;
+    }
+    
+    // Set delivery details for 'deliver' influence
+    setDeliveryDetails(itemName, targetAreaName, targetCoords = null) {
+        this.deliveryItemName = itemName;
+        this.deliveryTargetAreaName = targetAreaName;
+        this.deliveryTargetCoords = targetCoords;
+        return this;
+    }
+    
+    // Calculate influence on an NPC based on distance
+    calculateInfluence(npc) {
+        if (!this.coordinates || !npc.coordinates) return 0;
+        
+        // Calculate distance between influence source and NPC
+        const dx = this.coordinates.x - npc.coordinates.x;
+        const dy = this.coordinates.y - npc.coordinates.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // If NPC is outside influence radius, no effect
+        if (distance > this.influenceRadius) return 0;
+        
+        // Influence decreases with distance
+        const distanceFactor = 1 - (distance / this.influenceRadius);
+        return this.influenceStrength * distanceFactor;
     }
 }
 
@@ -111,16 +150,122 @@ class NPC extends GameObject {
         this.isFleeing = false;
         this.fleeingDuration = 0;
         this.lastActionTurn = 0;
+        
+        // Personality traits (0-1 scale)
+        this.traits = {
+            greed: Math.random(),           // Likelihood to pick up valuable items
+            curiosity: Math.random(),       // Likelihood to explore
+            impulsiveness: Math.random(),   // Likelihood to make purchases
+            influenceability: Math.random() // How susceptible to influence sources
+        };
+        
+        // Current goals and influences
+        this.currentGoal = null;  // 'buy', 'move', 'deliver', etc.
+        this.goalTarget = null;   // Item name, area name, etc.
+        this.goalStrength = 0;    // How strongly motivated (0-1)
+        this.goalExpiration = 0;  // Game turn when goal expires
+        
+        // For pathfinding
+        this.knownAreas = new Set(); // Areas the NPC has visited
+        if (area) this.knownAreas.add(area.name);
     }
 
     addItemToInventory(item) {
         this.inventory.push(item);
+        item.coordinates = null; // Item is no longer in the world
+    }
+
+    removeItemFromInventory(itemName) {
+        const itemIndex = this.inventory.findIndex(item => 
+            item.name.toLowerCase() === itemName.toLowerCase());
+        
+        if (itemIndex !== -1) {
+            const item = this.inventory[itemIndex];
+            this.inventory.splice(itemIndex, 1);
+            return item;
+        }
+        
+        return null;
     }
 
     startFleeing(duration = 3) {
         this.isFleeing = true;
         this.fleeingDuration = duration;
+        // Clear current goal when fleeing
+        this.clearGoal();
         return `${this.name} starts running away in panic!`;
+    }
+    
+    setGoal(goalType, target, strength, duration) {
+        this.currentGoal = goalType;
+        this.goalTarget = target;
+        this.goalStrength = Math.min(1, Math.max(0, strength)); // Clamp between 0-1
+        this.goalExpiration = this.lastActionTurn + duration;
+    }
+    
+    clearGoal() {
+        this.currentGoal = null;
+        this.goalTarget = null;
+        this.goalStrength = 0;
+        this.goalExpiration = 0;
+    }
+    
+    // Check if NPC is influenced by nearby influence sources
+    checkInfluences(influenceSources) {
+        if (!this.location || !this.coordinates) return;
+        
+        // Skip if NPC is fleeing
+        if (this.isFleeing) return;
+        
+        // Find influence sources in the same area
+        const sourcesInArea = influenceSources.filter(source => 
+            source.coordinates && 
+            this.location === source.location);
+        
+        for (const source of sourcesInArea) {
+            const influenceStrength = source.calculateInfluence(this);
+            
+            // Skip if influence is too weak or NPC is resistant
+            if (influenceStrength <= 0.1) continue;
+            
+            // Adjust influence based on NPC's influenceability
+            const adjustedInfluence = influenceStrength * this.traits.influenceability;
+            
+            // Only set a new goal if the influence is stronger than current goal
+            // or if there is no current goal
+            if (adjustedInfluence > this.goalStrength || !this.currentGoal) {
+                // Duration based on influence strength (stronger = longer)
+                const duration = Math.floor(5 + (adjustedInfluence * 10));
+                
+                switch (source.actionType) {
+                    case 'buy':
+                        if (source.targetItemName) {
+                            this.setGoal('buy', source.targetItemName, adjustedInfluence, duration);
+                        }
+                        break;
+                    case 'move':
+                        if (source.targetAreaName) {
+                            this.setGoal('move', source.targetAreaName, adjustedInfluence, duration);
+                        }
+                        break;
+                    case 'deliver':
+                        if (source.deliveryItemName && source.deliveryTargetAreaName) {
+                            // Check if NPC has the item to deliver
+                            const hasItem = this.inventory.some(item => 
+                                item.name.toLowerCase() === source.deliveryItemName.toLowerCase());
+                            
+                            if (hasItem) {
+                                this.setGoal('deliver', {
+                                    item: source.deliveryItemName,
+                                    area: source.deliveryTargetAreaName,
+                                    coords: source.deliveryTargetCoords
+                                }, adjustedInfluence, duration);
+                            }
+                        }
+                        break;
+                }
+            }
+        }
     }
 
     update(gameTurn) {
@@ -129,7 +274,12 @@ class NPC extends GameObject {
         
         this.lastActionTurn = gameTurn;
         
-        // Handle fleeing behavior
+        // Check if goal has expired
+        if (this.currentGoal && gameTurn > this.goalExpiration) {
+            this.clearGoal();
+        }
+        
+        // Handle fleeing behavior (highest priority)
         if (this.isFleeing) {
             this.fleeingDuration--;
             if (this.fleeingDuration <= 0) {
@@ -144,19 +294,134 @@ class NPC extends GameObject {
             return `${this.name} continues to flee in panic!`;
         }
         
-        // Random actions when not fleeing (30% chance to do something)
+        // Handle goal-directed behavior
+        if (this.currentGoal) {
+            switch (this.currentGoal) {
+                case 'buy':
+                    return this.pursueBuyGoal();
+                case 'move':
+                    return this.pursueMoveGoal();
+                case 'deliver':
+                    return this.pursueDeliverGoal();
+            }
+        }
+        
+        // Random actions when not fleeing or pursuing a goal (30% chance to do something)
         if (Math.random() < 0.3) {
             const actions = [
-                this.randomMove.bind(this),
-                this.lookAtItems.bind(this),
-                this.considerBuying.bind(this)
+                { action: this.randomMove.bind(this), weight: this.traits.curiosity },
+                { action: this.lookAtItems.bind(this), weight: 0.5 },
+                { action: this.considerPickingUpItem.bind(this), weight: this.traits.greed },
+                { action: this.considerBuying.bind(this), weight: this.traits.impulsiveness }
             ];
             
-            const randomAction = actions[Math.floor(Math.random() * actions.length)];
-            return randomAction();
+            // Weight-based random selection
+            const totalWeight = actions.reduce((sum, action) => sum + action.weight, 0);
+            let randomValue = Math.random() * totalWeight;
+            
+            for (const action of actions) {
+                randomValue -= action.weight;
+                if (randomValue <= 0) {
+                    return action.action();
+                }
+            }
+            
+            // Fallback if weights don't add up properly
+            return actions[0].action();
         }
         
         return null; // No action this turn
+    }
+    
+    pursueBuyGoal() {
+        if (!this.location) return null;
+        
+        // If in a shop with the target item
+        if (this.location.shopStock && 
+            this.goalTarget.toLowerCase() in this.location.shopStock) {
+            
+            return this.buySpecificItem(this.goalTarget);
+        }
+        
+        // Otherwise, move toward a shop that might have it
+        // For simplicity, just move randomly for now, but prefer shops
+        for (const [direction, area] of Object.entries(this.location.connections)) {
+            if (area.shopStock) {
+                this.move(direction);
+                return `${this.name} heads ${direction} toward ${area.name}, looking for ${this.goalTarget}.`;
+            }
+        }
+        
+        // If no shop found, move randomly
+        return this.randomMove();
+    }
+    
+    pursueMoveGoal() {
+        if (!this.location) return null;
+        
+        // If already in target area, goal is complete
+        if (this.location.name.toLowerCase() === this.goalTarget.toLowerCase()) {
+            this.clearGoal();
+            return `${this.name} arrives at ${this.location.name}.`;
+        }
+        
+        // Try to find a path to the target area
+        // For simplicity, just check direct connections first
+        for (const [direction, area] of Object.entries(this.location.connections)) {
+            if (area.name.toLowerCase() === this.goalTarget.toLowerCase()) {
+                this.move(direction);
+                return `${this.name} heads ${direction} toward ${area.name}.`;
+            }
+        }
+        
+        // If no direct connection, move randomly for now
+        // In a more complex implementation, we would use pathfinding
+        return this.randomMove();
+    }
+    
+    pursueDeliverGoal() {
+        if (!this.location) return null;
+        
+        // Check if NPC has the item to deliver
+        const hasItem = this.inventory.some(item => 
+            item.name.toLowerCase() === this.goalTarget.item.toLowerCase());
+        
+        if (!hasItem) {
+            this.clearGoal();
+            return `${this.name} no longer has the ${this.goalTarget.item} to deliver.`;
+        }
+        
+        // If in target area, deliver the item
+        if (this.location.name.toLowerCase() === this.goalTarget.area.toLowerCase()) {
+            const item = this.removeItemFromInventory(this.goalTarget.item);
+            
+            if (item) {
+                // If specific coordinates provided, place item there
+                if (this.goalTarget.coords) {
+                    this.location.addObjectToGrid(item, 
+                        this.goalTarget.coords.x, 
+                        this.goalTarget.coords.y);
+                } else {
+                    // Otherwise place at NPC's position
+                    const [gridX, gridY] = this.location.getRelativeCoordinates(this.coordinates);
+                    this.location.addObjectToGrid(item, gridX, gridY);
+                }
+                
+                this.clearGoal();
+                return `${this.name} delivers the ${item.name} to ${this.location.name}.`;
+            }
+        }
+        
+        // Otherwise, move toward target area (similar to pursueMoveGoal)
+        for (const [direction, area] of Object.entries(this.location.connections)) {
+            if (area.name.toLowerCase() === this.goalTarget.area.toLowerCase()) {
+                this.move(direction);
+                return `${this.name} heads ${direction} toward ${area.name} to deliver the ${this.goalTarget.item}.`;
+            }
+        }
+        
+        // If no direct connection, move randomly
+        return this.randomMove();
     }
 
     randomMove() {
@@ -193,6 +458,9 @@ class NPC extends GameObject {
             const newArea = this.location.connections[direction];
             this.location.removeNPC(this);
             this.location = newArea;
+            
+            // Add to known areas
+            this.knownAreas.add(newArea.name);
             
             // Place at appropriate entry point in new area
             if (direction === 'north') {
@@ -231,6 +499,73 @@ class NPC extends GameObject {
         
         return null;
     }
+    
+    considerPickingUpItem() {
+        if (!this.location) return null;
+        
+        const [gridX, gridY] = this.location.getRelativeCoordinates(this.coordinates);
+        const objectsHere = this.location.getObjectsAtGridCell(gridX, gridY);
+        
+        // Filter for pickupable items
+        const pickupableItems = objectsHere.filter(obj => 
+            obj instanceof Item && obj.pickupable);
+        
+        if (pickupableItems.length > 0) {
+            // Sort by value (higher value first)
+            pickupableItems.sort((a, b) => b.value - a.value);
+            
+            // Chance to pick up based on greed and item value
+            const item = pickupableItems[0];
+            const pickupChance = this.traits.greed * (0.3 + (item.value / 20));
+            
+            if (Math.random() < pickupChance) {
+                this.location.removeObjectFromGrid(item, gridX, gridY);
+                this.addItemToInventory(item);
+                return `${this.name} picks up the ${item.name}.`;
+            }
+        }
+        
+        return null;
+    }
+
+    buySpecificItem(itemName) {
+        if (!this.location || !this.location.shopStock || this.money <= 0) return null;
+        
+        const itemDetails = this.location.shopStock[itemName.toLowerCase()];
+        
+        if (itemDetails && itemDetails.stock > 0 && this.money >= itemDetails.price) {
+            // Buy the item
+            this.money -= itemDetails.price;
+            const boughtItem = new Item(
+                itemDetails.prototype.name, 
+                itemDetails.prototype.description, 
+                itemDetails.prototype.value
+            );
+            this.addItemToInventory(boughtItem);
+            
+            // Reduce stock
+            if (itemDetails.stock !== Infinity) {
+                itemDetails.stock--;
+            }
+            
+            // Record purchase for stock market
+            const purchaseInfo = {
+                itemName: boughtItem.name,
+                price: itemDetails.price,
+                stockSymbol: this.location.associatedStockSymbol
+            };
+            
+            // Clear goal after successful purchase
+            this.clearGoal();
+            
+            return {
+                message: `${this.name} buys a ${boughtItem.name} for $${itemDetails.price.toFixed(2)}.`,
+                purchaseInfo: purchaseInfo
+            };
+        }
+        
+        return null;
+    }
 
     considerBuying() {
         if (!this.location || !this.location.shopStock || this.money <= 0) return null;
@@ -240,13 +575,17 @@ class NPC extends GameObject {
             .filter(([_, details]) => details.price <= this.money && details.stock > 0);
         
         if (affordableItems.length > 0) {
-            // Randomly decide whether to buy
-            if (Math.random() < 0.4) {
+            // Chance to buy based on impulsiveness
+            if (Math.random() < this.traits.impulsiveness * 0.5) {
                 const [itemName, details] = affordableItems[Math.floor(Math.random() * affordableItems.length)];
                 
                 // Buy the item
                 this.money -= details.price;
-                const boughtItem = new Item(details.prototype.name, details.prototype.description, details.prototype.value);
+                const boughtItem = new Item(
+                    details.prototype.name, 
+                    details.prototype.description, 
+                    details.prototype.value
+                );
                 this.addItemToInventory(boughtItem);
                 
                 // Reduce stock
@@ -277,18 +616,42 @@ class NPC extends GameObject {
         info += `Location: ${this.location ? this.location.name : 'Unknown'}\n`;
         info += `Money: $${this.money.toFixed(2)}\n`;
         
+        // Show personality traits
+        info += `\nPersonality:\n`;
+        info += `  Greed: ${Math.round(this.traits.greed * 100)}%\n`;
+        info += `  Curiosity: ${Math.round(this.traits.curiosity * 100)}%\n`;
+        info += `  Impulsiveness: ${Math.round(this.traits.impulsiveness * 100)}%\n`;
+        info += `  Influenceability: ${Math.round(this.traits.influenceability * 100)}%\n`;
+        
+        // Show current status
         if (this.isFleeing) {
-            info += `Status: Fleeing (${this.fleeingDuration} turns remaining)\n`;
+            info += `\nStatus: Fleeing (${this.fleeingDuration} turns remaining)\n`;
+        } else if (this.currentGoal) {
+            info += `\nCurrent Goal: ${this.currentGoal} `;
+            if (this.currentGoal === 'buy' || this.currentGoal === 'move') {
+                info += `${this.goalTarget}\n`;
+            } else if (this.currentGoal === 'deliver') {
+                info += `${this.goalTarget.item} to ${this.goalTarget.area}\n`;
+            }
+            info += `Goal Strength: ${Math.round(this.goalStrength * 100)}%\n`;
+            info += `Expires in: ${this.goalExpiration - gameTurn} turns\n`;
+        } else {
+            info += `\nStatus: Idle\n`;
         }
         
+        // Show inventory
         if (this.inventory.length > 0) {
-            info += "Inventory:\n";
+            info += "\nInventory:\n";
             this.inventory.forEach(item => {
-                info += `  - ${item.name}\n`;
+                info += `  - ${item.name} (Value: $${item.value})\n`;
             });
         } else {
-            info += "Inventory: Empty\n";
+            info += "\nInventory: Empty\n";
         }
+        
+        // Show known areas
+        info += "\nKnown Areas: ";
+        info += Array.from(this.knownAreas).join(", ");
         
         return info;
     }
@@ -473,7 +836,7 @@ class Player {
             
             this.coordinates = area.getGlobalCoordinates(gridX, gridY);
             this.displayMessage(`You are now in ${area.name}. ${area.description}`);
-            this.lookAround();
+            //this.lookAround();
         } else {
             this.displayMessage("Error: Tried to move to a null area.");
         }
@@ -863,10 +1226,13 @@ class GameManager {
         this.areaManager = new AreaManager();
         this.npcs = [];
         this.computers = [];
+        this.influenceSources = []; // New array for influence sources
         this.running = true;
         this.gameTurn = 0;
         this.inStockTerminalMode = false;
         this.currentComputer = null;
+        this.stockMarketEnabled = true; // Enable stock market features
+        this.stockUpdateFrequency = 5; // Update stocks every 5 turns
         
         this.ambientNoEventMessages = [
             "Time passes.",
@@ -1195,6 +1561,9 @@ class GameManager {
         const query = entityNameQuery.toLowerCase();
         let found = false;
         
+        // Group items by name and area for better display
+        const itemsByNameAndArea = {};
+        
         for (const area of Object.values(this.areaManager.areas)) {
             // Check NPCs in area
             for (const npc of area.npcs) {
@@ -1205,13 +1574,45 @@ class GameManager {
                 }
             }
             
-            // Check Items in area
+            // Check Items in area and group them
             for (const item of area.items) {
                 if (item.name.toLowerCase().includes(query)) {
-                    const [itemGx, itemGy] = area.getRelativeCoordinates(item.coordinates);
-                    this.displayMessage(`Item '${item.name}' found in ${area.name} at grid (${Math.floor(itemGx)},${Math.floor(itemGy)}). Global: ${item.coordinates}`);
                     found = true;
+                    
+                    // Create a key for this item type and area
+                    const key = `${item.name}|${area.name}`;
+                    
+                    if (!itemsByNameAndArea[key]) {
+                        itemsByNameAndArea[key] = {
+                            name: item.name,
+                            area: area.name,
+                            locations: []
+                        };
+                    }
+                    
+                    const [itemGx, itemGy] = area.getRelativeCoordinates(item.coordinates);
+                    itemsByNameAndArea[key].locations.push({
+                        grid: `(${Math.floor(itemGx)}, ${Math.floor(itemGy)})`,
+                        global: item.coordinates.toString()
+                    });
                 }
+            }
+        }
+        
+        // Display grouped items
+        for (const key in itemsByNameAndArea) {
+            const itemGroup = itemsByNameAndArea[key];
+            
+            if (itemGroup.locations.length === 1) {
+                // Single item
+                const location = itemGroup.locations[0];
+                this.displayMessage(`Item '${itemGroup.name}' found in ${itemGroup.area} at grid ${location.grid}. Global: ${location.global}`);
+            } else {
+                // Multiple items with same name
+                this.displayMessage(`Found ${itemGroup.locations.length} '${itemGroup.name}' items in ${itemGroup.area}:`);
+                itemGroup.locations.forEach((location, index) => {
+                    this.displayMessage(`  ${index + 1}. At grid ${location.grid}. Global: ${location.global}`);
+                });
             }
         }
         
@@ -1222,6 +1623,11 @@ class GameManager {
 
     updateWorld() {
         this.gameTurn++;
+        
+        // Apply influence sources to NPCs
+        for (const npc of this.npcs) {
+            npc.checkInfluences(this.influenceSources);
+        }
         
         // Update NPCs
         const npcUpdates = [];
@@ -1267,6 +1673,58 @@ class GameManager {
                 }
             }
         }
+        
+        // Update stock market periodically
+        if (this.stockMarketEnabled && this.gameTurn % this.stockUpdateFrequency === 0) {
+            this.updateStockMarket();
+        }
+        
+        // Random ambient message (5% chance if no other messages)
+        if (npcUpdates.length === 0 && Math.random() < 0.05) {
+            const randomMessage = this.ambientNoEventMessages[
+                Math.floor(Math.random() * this.ambientNoEventMessages.length)
+            ];
+            this.displayMessage(randomMessage);
+        }
+    }
+    
+    updateStockMarket() {
+        for (const computer of this.computers) {
+            if (!computer.stocks) continue;
+            
+            // Update each stock with some randomness
+            for (const [symbol, data] of Object.entries(computer.stocks)) {
+                // Base volatility
+                const volatility = 0.05;
+                
+                // Random price change (-volatility to +volatility)
+                const randomFactor = (Math.random() * 2 - 1) * volatility;
+                
+                // Adjust based on sales (more sales = higher price)
+                const salesFactor = data.sales > 0 ? Math.min(0.03, data.sales / 1000) : 0;
+                
+                // Calculate new price
+                const priceChange = data.price * (randomFactor + salesFactor);
+                data.price += priceChange;
+                
+                // Ensure price doesn't go below 1.00
+                data.price = Math.max(1.00, data.price);
+                
+                // Add to history
+                data.history.push(data.price);
+                if (data.history.length > 20) {
+                    data.history.shift();
+                }
+                
+                // Reset sales counter
+                data.sales = 0;
+            }
+            
+            // If player is using this computer, show updated prices
+            if (this.inStockTerminalMode && this.currentComputer === computer) {
+                this.displayMessage(computer.getStockInfo());
+            }
+        }
     }
 
     showHelp() {
@@ -1306,7 +1764,7 @@ When using a computer terminal, different commands will be available.
     }
 
     initializeGame() {
-        this.displayMessage("Initializing game world...");
+        this.displayMessage("Game Loading...");
         
         // Create Areas
         const parkOrigin = new Coordinates(0, 0, 0);
@@ -1337,17 +1795,26 @@ When using a computer terminal, different commands will be available.
         const greenPyramid = new Item("Green Pyramid", "A shiny green pyramid.", 15);
         park.addObjectToGrid(greenPyramid, 8, 8);
         
-        const yellowStar = new Item("Yellow Star", "A bright yellow star.", 0);
-        park.addObjectToGrid(yellowStar, 6, 6);
+        // Place the first yellow star
+        const yellowStar1 = new Item("Yellow Star", "A bright yellow star.", 0);
+        park.addObjectToGrid(yellowStar1, 6, 6);
+        console.log(`Yellow Star placed at (6, 6)`);
         
-        let ysx = 6;
-        let ysy = 6;
-        for (let i = 0; i < 5; i++) {
-            ysx--;
-            ysy--;
-            park.addObjectToGrid(yellowStar, ysx, ysy);
-            console.log(`Yellow Star placed at (${ysx}, ${ysy})`);
-        }
+        // Place additional yellow stars at different coordinates
+        const starPositions = [
+            [5, 5],
+            [4, 4],
+            [3, 3],
+            [2, 2],
+            [1, 1]
+        ];
+        
+        // Create a new instance for each star
+        starPositions.forEach(([x, y]) => {
+            const newStar = new Item("Yellow Star", "A bright yellow star.", 0);
+            park.addObjectToGrid(newStar, x, y);
+            console.log(`Yellow Star placed at (${x}, ${y})`);
+        });
         
         // Stock the shop
         const shopApplePrototype = new Item("Apple", "A juicy red apple.", 2);
@@ -1360,24 +1827,46 @@ When using a computer terminal, different commands will be available.
         const appleAdvert = new InfluenceSource(
             "Shiny Apple Poster",
             "A vibrant poster exclaiming 'An Apple a Day Keeps the Doctor Away! Buy Apples!'",
-            "shop",
+            "buy",
             4,
             0.75
-        );
-        appleAdvert.targetItemName = "Apple";
+        ).setTargetItem("Apple");
+        
+        appleAdvert.coordinates = park.getGlobalCoordinates(7, 7);
+        appleAdvert.location = park;
         park.addObjectToGrid(appleAdvert, 7, 7);
+        this.influenceSources.push(appleAdvert);
         
         const offeringWhisper = new InfluenceSource(
             "Mysterious Whisper Stone",
             "A faint, almost inaudible whisper seems to emanate from this oddly smooth stone, urging devotion.",
-            "deliver_item",
+            "deliver",
             5,
             0.60
+        ).setDeliveryDetails(
+            "Yellow Star", 
+            "Gray Bird Garden", 
+            { x: Math.floor(garden.gridWidth / 2), y: Math.floor(garden.gridLength / 2) }
         );
-        offeringWhisper.deliveryItemName = "Yellow Star";
-        offeringWhisper.deliveryTargetAreaName = "Gray Bird Garden";
-        offeringWhisper.deliveryTargetCoords = [Math.floor(garden.gridWidth / 2), Math.floor(garden.gridLength / 2)];
+        
+        offeringWhisper.coordinates = park.getGlobalCoordinates(2, 8);
+        offeringWhisper.location = park;
         park.addObjectToGrid(offeringWhisper, 2, 8);
+        this.influenceSources.push(offeringWhisper);
+        
+        // Add a "move to shop" influence
+        const shopSign = new InfluenceSource(
+            "Shop poster",
+            "A poster hung on a tree, promoting the general store.",
+            "move",
+            6,
+            0.65
+        ).setTargetArea("General Store");
+        
+        shopSign.coordinates = park.getGlobalCoordinates(9, 5);
+        shopSign.location = park;
+        park.addObjectToGrid(shopSign, 9, 5);
+        this.influenceSources.push(shopSign);
         
         // Create NPCs
         const roboCoords = park.getGlobalCoordinates(3, 2);
@@ -1410,14 +1899,16 @@ When using a computer terminal, different commands will be available.
         // Place Player
         this.player.setCurrentArea(park, 1, 1);
         
-        this.displayMessage("Game initialized.");
-        this.player.lookAround();
+        this.displayMessage("Game loaded.");
     }
 
     start() {
         this.displayMessage("Welcome to Vita Game Hustle - Web Edition!");
         this.displayMessage("Type 'help' for a list of commands.");
         this.initializeGame();
+        
+        // Only describe the world once after everything is loaded
+        this.player.lookAround();
     }
 }
 
