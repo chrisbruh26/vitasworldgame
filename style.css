@@ -1,0 +1,71 @@
+body {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #d6bbf5;
+    color: #333;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+#game-container {
+    width: 80%;
+    max-width: 1500px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+#output-area {
+    height: 800px;
+    overflow-y: auto;
+    padding: 10px;
+    border-bottom: 1px solid #ccc;
+    background-color: #1e1e1e; /* Darker background for terminal feel */
+    color: #d4d4d4; /* Lighter text for terminal feel */
+    white-space: pre-wrap; /* Preserve whitespace and newlines */
+}
+
+#output-area p {
+    margin: 5px 0;
+}
+
+.command-echo {
+    color: #569cd6; /* A distinct color for user commands */
+}
+
+.game-message {
+    color: #9cdcfe; /* A color for game messages */
+}
+
+.error-message {
+    color: #f44747; /* A color for error messages */
+}
+
+#input-area {
+    display: flex;
+    padding: 10px;
+}
+
+#command-input {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #ccc;
+    margin-right: 5px;
+    font-family: inherit; /* Use the same font as the body */
+}
+
+#submit-button {
+    padding: 8px 15px;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+#submit-button:hover {
+    background-color: #0056b3;
+}
