@@ -117,16 +117,40 @@ class NPC:
                 item.coordinates = None # Item is now in inventory
             return message
         return None
-    
+
     def add_item_to_inventory(self, item_instance):
         """Adds a cloned item instance to NPC's inventory."""
         self.inventory.append(item_instance)
         item_instance.coordinates = None # Item is in inventory, not on map
 
-    def drop_item(self, item_name):
-        """NPC drops an item into its current location."""
-        # Similar to player's drop
-        return None # Or a message if implemented
+    def drop_item_from_inventory(self, item_to_drop, drop_gx, drop_gy):
+        """
+        NPC drops a specific item object from inventory at specified grid coords in current area.
+        Returns a message string.
+        """
+        if not self.location:
+            return f"{self.name} tries to drop {item_to_drop.name}, but is nowhere."
+        if item_to_drop not in self.inventory:
+            return f"{self.name} tries to drop {item_to_drop.name}, but doesn't have it."
+        if not self.location.is_valid_grid_position(drop_gx, drop_gy):
+            return f"{self.name} tries to drop {item_to_drop.name} at ({drop_gx},{drop_gy}), but that's not a valid spot in {self.location.name}."
+
+        self.inventory.remove(item_to_drop)
+        self.location.add_object_to_grid(item_to_drop, drop_gx, drop_gy) # This updates item's coords
+        return f"{self.name} dropped {item_to_drop.name} at ({drop_gx},{drop_gy}) in {self.location.name}."
+
+    def drop_item_by_name_at_current_location(self, item_name_query):
+        """NPC finds an item by name in inventory and drops it at their current location."""
+        item_to_drop = None
+        for item_in_inv in self.inventory:
+            if item_in_inv.name.lower() == item_name_query.lower():
+                item_to_drop = item_in_inv
+                break
+        if not item_to_drop:
+            return f"{self.name} tried to drop '{item_name_query}' but doesn't have one."
+        
+        current_gx, current_gy = self.get_grid_position()
+        return self.drop_item_from_inventory(item_to_drop, current_gx, current_gy)
 
     # --- NPC Actions ---
 
@@ -418,8 +442,17 @@ class NPC:
                 if self.move_on_grid(dx, dy):
                     action_message = f"{self.name} wanders around."
             self.action_cooldown = random.randint(1,3) # Cooldown after attempting to wander
-            return {'message': action_message, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
-            
+            if action_message: # Only return if they actually wandered
+                return {'message': action_message, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+
+        # --- TEMPORARY TEST: NPC Dropping Item ---
+        if self.inventory and random.random() < 0.1: # 10% chance to drop an item if they have one
+            item_to_drop = random.choice(self.inventory)
+            drop_message = self.drop_item_by_name_at_current_location(item_to_drop.name)
+            self.action_cooldown = 2
+            return {'message': drop_message, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+        # --- END TEMPORARY TEST ---
+
         return {'message': None, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None} # Default empty action
 
 

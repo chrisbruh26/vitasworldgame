@@ -126,6 +126,10 @@ class GameManager:
         robo_coords = park.get_global_coordinates(3,2) # Robo starts at (3,2)
         robo = NPC(name="Robo", description="A small, curious robot.", start_coords=robo_coords, area=park, money=25)
         # robo.set_location(park, 3, 2) # This is now handled by add_object_to_grid if area is passed to NPC constructor
+        # Give Robo an item for testing dropping
+        shiny_trinket = Item(name="Shiny Trinket", description="A small, glittering object.")
+        robo.add_item_to_inventory(shiny_trinket)
+
         park.add_object_to_grid(robo, 3, 2)
         self.npc_manager.add_npc(robo)
 
