@@ -30,6 +30,9 @@ class NPC:
         self.flee_timer = 0
         self.recently_failed_to_buy = {} # item_key_lower: expiry_turn
         self.shopping_frustration_cooldown = 0 # Turns to wait before trying to shop again after a failure
+        self.recently_processed_influences = {} # influence_source_id: expiry_turn
+        self.active_influence_source_id = None # ID of the influence source for the current shopping_target_item_name
+        self.MIN_MONEY_TO_CONSIDER_SHOPPING = 1.50 # Minimum money to even attempt shopping
 
     def set_location(self, area, grid_x=None, grid_y=None):
         """Places the NPC in an area and on its grid."""
@@ -141,45 +144,75 @@ class NPC:
         for item_key, expiry_turn in list(self.recently_failed_to_buy.items()):
             if current_game_turn >= expiry_turn:
                 del self.recently_failed_to_buy[item_key]
+        
+        # Clear expired processed influences
+        for source_id, expiry_turn in list(self.recently_processed_influences.items()):
+            if current_game_turn >= expiry_turn:
+                del self.recently_processed_influences[source_id]
 
 
         my_gx, my_gy = self.get_grid_position()
         if my_gx is None or my_gy is None: # NPC not properly placed
             return {'message': None, 'purchase_info': None, 'flee_event': None}
         
+        # Early check: If influenced to shop but has no/low money, give up on the influence.
+        if self.is_currently_shopping and \
+           self.shopping_target_item_name and \
+           self.money < self.MIN_MONEY_TO_CONSIDER_SHOPPING:
+            
+            abandon_message = f"{self.name} realizes they don't have enough money for {self.shopping_target_item_name} and sighs, giving up the idea."
+            self.shopping_target_item_name = None
+            self.is_currently_shopping = False
+            if self.active_influence_source_id:
+                self.recently_processed_influences[self.active_influence_source_id] = current_game_turn + random.randint(10, 20)
+                self.active_influence_source_id = None
+            self.shopping_frustration_cooldown = random.randint(3, 5) # Get frustrated
+            # This message might be overridden if another action is taken, but sets the state.
+            # No immediate return, let other logic proceed.
+
         # -2. Check for Influence Sources (before fleeing, as influence might be a subtle background thing)
         # This check happens even if on cooldown for other actions, representing a passive perception.
         # However, the reaction (changing shopping target) might be delayed if already busy.
         if not self.is_fleeing: # Don't get influenced while panicking
-            for obj_coords, objects_in_cell in self.location.grid_objects.items():
-                for obj in objects_in_cell:
-                    if isinstance(obj, InfluenceSource):
-                        source_gx, source_gy = obj_coords # These are already grid coordinates
-                        dist_to_source = abs(my_gx - source_gx) + abs(my_gy - source_gy)
-
-                        if dist_to_source <= obj.influence_radius:
-                            if random.random() < obj.influence_strength:
-                                # Check if already targeting this or if it's a new influence
-                                if self.shopping_target_item_name != obj.target_item_name:
-                                    self.shopping_target_item_name = obj.target_item_name
-                                    # Optionally, slightly increase desire to shop or make it more immediate
-                                    self.desire_to_shop_chance = min(1.0, self.desire_to_shop_chance + 0.1)
-                                    self.is_currently_shopping = True # Become more proactive
-                                    self.action_cooldown = 0 # React sooner
-                                    
-                                    # Construct a message based on the influence
-                                    influence_reaction_message = f"{self.name} notices the {obj.name}. "
-                                    if obj.target_item_name:
-                                        influence_reaction_message += f"Suddenly, they feel a strong craving for {obj.target_item_name}!"
-                                    else:
-                                        influence_reaction_message += obj.influence_message
-                                    # Influence messages are standard for now, not thematically grouped yet
-                                    return {
-                                        'message': influence_reaction_message,
-                                        'purchase_info': None,
-                                        'flee_event': None,
-                                        'structured_action_details': None
-                                    }
+            # If NPC has very little money, they shouldn't be influenced to buy things.
+            if self.money < self.MIN_MONEY_TO_CONSIDER_SHOPPING:
+                pass # Skip influence checking for shopping if broke
+            else:
+                for obj_coords, objects_in_cell in self.location.grid_objects.items():
+                    for obj in objects_in_cell:
+                        if isinstance(obj, InfluenceSource):
+                            source_gx, source_gy = obj_coords # These are already grid coordinates
+                            
+                            # Check if recently processed this specific influence
+                            if obj.id in self.recently_processed_influences:
+                                continue # Ignore this influence for now
+                            
+                            dist_to_source = abs(my_gx - source_gx) + abs(my_gy - source_gy)
+    
+                            if dist_to_source <= obj.influence_radius:
+                                if random.random() < obj.influence_strength:
+                                    # Check if already targeting this or if it's a new influence
+                                    if self.shopping_target_item_name != obj.target_item_name:
+                                        self.active_influence_source_id = obj.id # Store which influence caused this
+                                        self.shopping_target_item_name = obj.target_item_name
+                                        # Optionally, slightly increase desire to shop or make it more immediate
+                                        self.desire_to_shop_chance = min(1.0, self.desire_to_shop_chance + 0.1)
+                                        self.is_currently_shopping = True # Become more proactive
+                                        self.action_cooldown = 0 # React sooner
+                                        
+                                        # Construct a message based on the influence
+                                        influence_reaction_message = f"{self.name} notices the {obj.name}. "
+                                        if obj.target_item_name:
+                                            influence_reaction_message += f"Suddenly, they feel a strong craving for {obj.target_item_name}!"
+                                        else:
+                                            influence_reaction_message += obj.influence_message
+                                        # Influence messages are standard for now, not thematically grouped yet
+                                        return {
+                                            'message': influence_reaction_message,
+                                            'purchase_info': None,
+                                            'flee_event': None,
+                                            'structured_action_details': None
+                                        }
         
         action_message = None
         purchase_info = None # To store details of a shop purchase
@@ -264,11 +297,14 @@ class NPC:
 
         # 0. Consider Shopping if in a shop area
         if hasattr(self.location, 'shop_stock') and self.location.shop_stock:
-            if self.shopping_frustration_cooldown <= 0 and \
+            if self.money >= self.MIN_MONEY_TO_CONSIDER_SHOPPING and \
+               self.shopping_frustration_cooldown <= 0 and \
                random.random() < self.desire_to_shop_chance: # Consider shopping
                 action_message, purchase_info = self.attempt_to_buy_from_shop(current_game_turn)
                 if not purchase_info and action_message: # If shopping failed (no purchase, but got a message)
-                    self.shopping_frustration_cooldown = random.randint(2, 4) # Get frustrated for a few turns
+                    self.shopping_frustration_cooldown = random.randint(3, 6) # Get frustrated for a bit longer
+                    self.is_currently_shopping = False # Ensure active shopping flag is cleared on any failure
+                # Return the result of the shopping attempt. Area change logic below will consider frustration.
                 return {'message': action_message, 'purchase_info': purchase_info, 'flee_event': None, 'structured_action_details': None}
 
         # 1. Check items at current location (picking up from floor)
@@ -360,7 +396,12 @@ class NPC:
                         return {'message': action_message, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
 
             # Standard wandering if not actively shopping for an influenced item or no suitable shop found
-            if not moved_to_new_area_for_shopping and random.random() < self.desire_to_change_area_chance:
+            current_desire_to_change_area = self.desire_to_change_area_chance
+            if self.shopping_frustration_cooldown > 1: # If recently frustrated by shopping (e.g. cooldown is 2+)
+                # Significantly increase chance to leave if frustrated
+                current_desire_to_change_area = max(current_desire_to_change_area, random.uniform(0.60, 0.85)) 
+
+            if not moved_to_new_area_for_shopping and random.random() < current_desire_to_change_area:
                 available_directions = list(self.location.connections.keys())
                 if available_directions:
                     chosen_direction = random.choice(available_directions)
@@ -414,8 +455,12 @@ class NPC:
             # If they had a target but it's not here, they shouldn't pick randomly yet, they should try to find their target.
             # This case might be better handled by the logic that moves them to a shop.
             # For now, if they are in a shop and their target isn't here, they "give up" on it for this shop.
-            self.recently_failed_to_buy[self.shopping_target_item_name.lower()] = current_game_turn + random.randint(2,4)
+            failed_item_key = self.shopping_target_item_name.lower()
+            self.recently_failed_to_buy[failed_item_key] = current_game_turn + random.randint(2,4)
             self.is_currently_shopping = False
+            if self.active_influence_source_id: # If this was due to an influence
+                self.recently_processed_influences[self.active_influence_source_id] = current_game_turn + random.randint(10, 20) # Cooldown for this specific influence
+                self.active_influence_source_id = None
             return f"{self.name} was looking for {self.shopping_target_item_name}, but couldn't find it in {self.location.name}.", None
         elif not item_to_buy_key: # Should be caught by earlier conditions, but as a fallback
             return f"{self.name} is undecided in {self.location.name}.", None
@@ -431,6 +476,9 @@ class NPC:
 
             if self.shopping_target_item_name and self.shopping_target_item_name.lower() == item_to_buy_key:
                 self.shopping_target_item_name = None
+                if self.active_influence_source_id: # If this was due to an influence
+                    self.recently_processed_influences[self.active_influence_source_id] = current_game_turn + random.randint(10, 20)
+                    self.active_influence_source_id = None
                 message += " They sigh and give up on finding it for now."
             return message, None
 
@@ -445,6 +493,9 @@ class NPC:
                 if self.shopping_target_item_name and self.shopping_target_item_name.lower() == item_to_buy_key:
                     self.shopping_target_item_name = None # Fulfilled the craving
                     self.is_currently_shopping = False    # Stop active shopping mode
+                    if self.active_influence_source_id: # If this was due to an influence
+                        self.recently_processed_influences[self.active_influence_source_id] = current_game_turn + random.randint(10, 20)
+                        self.active_influence_source_id = None
                 purchase_details = {
                     'item_name': bought_item_instance.name,
                     'price': price,
@@ -464,6 +515,9 @@ class NPC:
 
             if self.shopping_target_item_name and self.shopping_target_item_name.lower() == item_to_buy_key:
                 self.shopping_target_item_name = None
+                if self.active_influence_source_id: # If this was due to an influence
+                    self.recently_processed_influences[self.active_influence_source_id] = current_game_turn + random.randint(10, 20)
+                    self.active_influence_source_id = None
                 message += f" They decide they can't afford {item_prototype_name} right now."
             return message, None
 
@@ -498,7 +552,7 @@ class NPC:
                 status.append(f"  - {item_key}: Expires in {expiry_turn - current_game_turn} turns (at turn {expiry_turn})")
         else:
             status.append("  - None")
-        status.append("--- End Status ---")
+        status.append(f"--- End Status (Game Turn: {current_game_turn}) ---")
         return "\n".join(status)
 
     def update(self, current_game_turn):

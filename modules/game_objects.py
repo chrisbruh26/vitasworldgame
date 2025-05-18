@@ -49,7 +49,8 @@ class Computer(GameObject):
             
     def update_stock_prices(self):
         """Update stock prices based on volatility and recent sales."""
-        print(f"\n--- {self.name}: Stock Market Update (Turn {self.properties.get('game_turn', 0)}) ---")
+        # Silent update: No longer prints to console every turn.
+        # Player can view prices via interaction.
  
         for symbol, stock_data in self.stock_market.items():
             change_percent = random.uniform(-stock_data["volatility"], stock_data["volatility"])
@@ -59,20 +60,20 @@ class Computer(GameObject):
             if stock_data.get("recent_sales_value", 0.0) > 0:
                 # Add a positive bias based on sales; 0.5% to change_percent for every $100 in sales
                 sales_bonus_factor = (stock_data["recent_sales_value"] / 100.00) * 0.005
-                change_percent += sales_bonus_factor
-                print(f"  INFO: {symbol} sales activity (${stock_data['recent_sales_value']:.2f}) influencing price.")
+                change_percent += sales_bonus_factor # Apply bonus
+                # Optionally, log this to a debug file or internal log if needed, but not to player console.
+                # print(f"  DEBUG: {symbol} sales activity (${stock_data['recent_sales_value']:.2f}) influencing price.")
             
             price_change = stock_data["price"] * change_percent # Calculate the actual price change amount
             new_price = max(1.0, stock_data["price"] + price_change) # Ensure price doesn't go below $1.00
-            old_price = stock_data["price"]
+            # old_price = stock_data["price"] # Not needed if not printing detailed changes
             
             self.stock_market[symbol]["price"] = round(new_price, 2)
             self.stock_market[symbol]["recent_sales_value"] = 0.0 # Reset sales tracker for this turn
             
-            if new_price > old_price:
-                print(f"  {symbol} ({stock_data['name']}) rose to ${new_price:.2f}")
-            elif new_price < old_price:
-                print(f"  {symbol} ({stock_data['name']}) fell to ${new_price:.2f}")
+            # Removed the print statements for individual stock changes:
+            # if new_price > old_price: print(...)
+            # elif new_price < old_price: print(...)
             # If new_price == old_price, no message is printed, which is fine.
 
     def display_stock_prices(self):

@@ -387,9 +387,11 @@ class GameManager:
         """Update game state, like NPC actions."""
         self.game_turn += 1
 
-        # Update stock prices on all computers
-        #for computer in self.computers:
-        #    computer.update_stock_prices() # This will print changes if any
+        # Update stock prices on all computers first
+        for computer in self.computers:
+            if hasattr(computer, 'set_property'): # Ensure it's a computer object that can store game_turn
+                computer.set_property('game_turn', self.game_turn)
+            computer.update_stock_prices()
         
         # --- Initialize sets to track processed NPCs for different message types ---
         processed_npc_ids_for_message = set() # Tracks NPCs whose flee actions are consolidated and printed
@@ -467,35 +469,71 @@ class GameManager:
 
             for action_type, actions_data_list in thematic_action_groups.items():
                 if len(actions_data_list) >= 2: # Only group if 2 or more
-                    consolidated_message = ""
                     if action_type == 'spotted_and_ran_to_coords':
-                        names = [data['npc_name'] for data in actions_data_list]
-                        
-                        if len(names) == 2:
-                            name_list_str = f"{names[0]} and {names[1]}"
-                        else: # >= 3
-                            name_list_str = ", ".join(names[:-2]) + f", {names[-2]}, and {names[-1]}" if len(names) > 2 else ", ".join(names[:-1]) + f", and {names[-1]}"
+                        # Sub-group by (target_coords, item_name) for contested items
+                        contested_targets = {} # Key: (coords_tuple, item_name_str), Value: list of npc_data
+                        remaining_runners_data = [] # For those not in a contested group of 2+
 
-                        first_part = f"{name_list_str} each spotted something and ran."
-                        
-                        individual_clauses = []
-                        for data in actions_data_list:
-                            item_info = f" towards {data['item_name']}" if data.get('item_name') else ""
-                            individual_clauses.append(f"{data['npc_name']} ran to {data['target_coords']}{item_info}")
-                        
-                        if len(actions_data_list) == 2:
-                            second_part = f" {individual_clauses[0]} while {individual_clauses[1]}."
-                        else: # >= 3
-                            second_part = " " + "; ".join(individual_clauses) + "."
+                        for npc_action_data in actions_data_list:
+                            target_key = (
+                                tuple(npc_action_data['target_coords']), # Ensure coords are hashable tuple
+                                npc_action_data.get('item_name')
+                            )
+                            contested_targets.setdefault(target_key, []).append(npc_action_data)
+
+                        for target_key, contenders_data in contested_targets.items():
+                            target_coords_tuple, item_name_str = target_key
+                            if len(contenders_data) >= 2:
+                                # This is a contested item/spot
+                                names = [data['npc_name'] for data in contenders_data]
+                                if len(names) == 2:
+                                    name_list_str = f"{names[0]} and {names[1]}"
+                                else: # >= 3
+                                    name_list_str = ", ".join(names[:-1]) + f", and {names[-1]}"
+                                
+                                item_desc = f" {item_name_str}" if item_name_str else " something"
+                                consolidated_message = f"{name_list_str} both spotted{item_desc} at {target_coords_tuple} and rushed towards it, possibly about to argue over it!"
+                                print(consolidated_message)
+                                for data in contenders_data:
+                                    processed_npc_ids_for_thematic_grouping.add(data['npc_id'])
+                            else:
+                                # Only one NPC for this specific target_key, add to remaining
+                                remaining_runners_data.extend(contenders_data)
+
+                        # Now handle the remaining_runners_data with the old "each spotted" logic if >= 2
+                        if len(remaining_runners_data) >= 2:
+                            names = [data['npc_name'] for data in remaining_runners_data]
+                            if len(names) == 2:
+                                name_list_str = f"{names[0]} and {names[1]}"
+                            else: # >= 3
+                                name_list_str = ", ".join(names[:-1]) + f", and {names[-1]}"
+
+                            first_part = f"{name_list_str} each spotted something and ran."
                             
-                        consolidated_message = first_part + second_part
-                    
+                            individual_clauses = []
+                            for data in remaining_runners_data:
+                                item_info = f" towards {data['item_name']}" if data.get('item_name') else ""
+                                individual_clauses.append(f"{data['npc_name']} ran to {data['target_coords']}{item_info}")
+                            
+                            if len(remaining_runners_data) == 2:
+                                second_part = f" {individual_clauses[0]} while {individual_clauses[1]}."
+                            else: # >= 3
+                                second_part = " " + "; ".join(individual_clauses) + "."
+                                
+                            consolidated_message = first_part + second_part
+                            print(consolidated_message)
+                            for data in remaining_runners_data: # Mark these as processed too
+                                processed_npc_ids_for_thematic_grouping.add(data['npc_id'])
+                        elif len(remaining_runners_data) == 1:
+                            # If only one runner is left after contested groups, they will be handled by later individual message printing
+                            # No action needed here for a single remaining runner.
+                            pass
+                        
                     # Add other action_type handlers here in the future
-
-                    if consolidated_message:
-                        print(consolidated_message)
-                        for data in actions_data_list: # Mark these NPCs as processed
-                            processed_npc_ids_for_thematic_grouping.add(data['npc_id'])
+                    # Note: The printing and marking as processed is now handled within the
+                    # 'spotted_and_ran_to_coords' block for its specific sub-groupings.
+                    # If you add other action_types, ensure they also print and mark processed NPCs.
+                    pass
 
         # --- Consolidate General NPC Action Messages ---
         # This set tracks NPCs whose general actions are consolidated by identical suffix
