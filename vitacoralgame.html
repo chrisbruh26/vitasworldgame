@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vita Chaos 2 - Desktop Version</title>
+    <link rel="stylesheet" href="vitachaos2.css">
+    <link rel="icon" type="image/x-icon" href="images/vitaimages/vita5.ico">
+</head>
+<body class="vitacoralgame-body">
+    <div id="game-container"></div>
+
+    <div id="controls-info">
+        <h3>Controls:</h3>
+        <ul>
+            <li>Move: Arrow Keys or WASD</li>
+            <li>Jump: Space or Up Arrow</li>
+            <li>Grab/Throw: E key</li>
+            <li>Kick: Left Mouse Click</li>
+            <li>Pause: Esc or P</li>
+        </ul>
+    </div>
+
+    <div id="game-plans-container">
+        <details>
+            <summary>Next Plans (click to expand/collapse)</summary>
+        <ul id="game-plans">
+                <li>1. make it playable</li>
+                <li>2. finetune Coral's speed and hunger for making a mess</li>
+                <li>3. implement more ways to manipulate phyiscs and make a mess (or clean it up)</li>
+                <li>4. more objects for Coral to interact with, add the ability to break objects</li>
+                <li>5. add game modes - freeplay, the sandbox version, and a levels-based mode <br>where you have to complete objectives by manipulating physics and clean Coral's mess a specific amount of times or in a specific way</li>
+                <li>6. the same game in reverse - play as Coral and try to make the world messy while the NPC Vita cleans it up</li>
+            </ul>
+        </details>
+    </div>
+    <!-- Get Matter.js from a CDN or download it locally -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="vitacoralgame.js"></script>
+</body>
+</html>
