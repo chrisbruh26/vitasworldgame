@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Game Configuration ---
     const BASE_GAME_WIDTH = 8000; // World width
-    const SINGLE_AREA_HEIGHT = 1000;
+    const SINGLE_AREA_HEIGHT = 500;
     const NUM_AREAS_VERTICAL = 2; // Simplified to 2 areas for now
     const BASE_GAME_HEIGHT = SINGLE_AREA_HEIGHT * NUM_AREAS_VERTICAL;
 
@@ -85,9 +85,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Walls & Ceiling
     const WALL_THICKNESS = 50;
     const WALL_COLOR = '#333333';
-    const CEILING_Y_OFFSET = -WALL_THICKNESS / 2;
+    // const CEILING_Y_OFFSET = -WALL_THICKNESS / 2; // Original, will be replaced
     const CEILING_HEIGHT = WALL_THICKNESS;
+    const CEILING_WIDTH = BASE_GAME_WIDTH; // Ceiling will span the game width
+    const CEILING_PLATFORM_ABOVE_P2_DISTANCE = 300; // How far above platform2 the new ceiling platform will be
 
+    // Calculate the new Y position for the ceiling to act as a platform
+    const Y_P2_TOP = (BASE_GAME_HEIGHT - SINGLE_AREA_HEIGHT) - PLATFORM_THICKNESS;
+    const Y_CEIL_TOP = Y_P2_TOP - CEILING_PLATFORM_ABOVE_P2_DISTANCE;
+    const NEW_CEILING_Y_OFFSET = Y_CEIL_TOP + (CEILING_HEIGHT / 2);
+    
     // Physics
     const GRAVITY_Y = 1;
     const PLAYER_MOVE_FORCE_FACTOR = 0.005;
@@ -97,14 +104,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const BOX_SIZE = 50;
     const NUM_BOXES = 10;
     const BOUNCY_BALL_RADIUS = 20;
-    const NUM_BALLS = 8;
+    const NUM_BALLS = 20;
     const BOUNCY_BALL_RESTITUTION = 0.9;
     const BACKGROUND_COLOR = '#ADD8E6'; // Light blue sky
 
     // Bouncy Platform Configuration
     const BOUNCY_PLATFORM_COLOR = '#FF69B4';
     const BOUNCY_PLATFORM_RESTITUTION = 1.0;
-    const BOUNCY_PLATFORM_ACTIVE_FORCE_MULTIPLIER = 0.05;
+    const BOUNCY_PLATFORM_ACTIVE_FORCE_MULTIPLIER = 0.09;
 
     // Liquifier Object Configuration
     const LIQUIFIER_OBJECT_SIZE = 30;
@@ -117,6 +124,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const CLEANER_OBJECT_COLOR = '#FA8072'; // Salmon
     const NUM_CLEANERS = 3;
     const CLEANER_OBJECT_LABEL_PREFIX = "Cleaner";
+
+    // Gap for upper floors
+    const FLOOR_GAP_WIDTH = 600; // Width of the gap on each side of platform2
 
     // Camera
     const CAMERA_PADDING = { x: 300, y: 300 };
@@ -162,11 +172,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         createFloors() {
-            const { GAME_WIDTH, GAME_HEIGHT, SINGLE_AREA_HEIGHT, GROUND_HEIGHT, PLATFORM_THICKNESS, GROUND_COLOR, PLATFORM_COLOR } = this.config;
+            const { GAME_WIDTH, GAME_HEIGHT, SINGLE_AREA_HEIGHT, GROUND_HEIGHT, PLATFORM_THICKNESS, GROUND_COLOR, PLATFORM_COLOR, FLOOR_GAP_WIDTH } = this.config;
             ground1 = Bodies.rectangle(GAME_WIDTH / 2, GAME_HEIGHT - (GROUND_HEIGHT / 2), GAME_WIDTH, GROUND_HEIGHT, {
                 isStatic: true, label: "Ground1", render: { fillStyle: GROUND_COLOR }
             });
-            platform2 = Bodies.rectangle(GAME_WIDTH / 2, (GAME_HEIGHT - SINGLE_AREA_HEIGHT) - (PLATFORM_THICKNESS / 2), GAME_WIDTH, PLATFORM_THICKNESS, {
+            const platform2Width = GAME_WIDTH - 2 * FLOOR_GAP_WIDTH;
+            platform2 = Bodies.rectangle(GAME_WIDTH / 2, (GAME_HEIGHT - SINGLE_AREA_HEIGHT) - (PLATFORM_THICKNESS / 2), platform2Width, PLATFORM_THICKNESS, {
                 isStatic: true, label: "Platform2", render: { fillStyle: PLATFORM_COLOR }
             });
             Composite.add(this.world, [ground1, platform2]);
@@ -186,8 +197,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         createCeiling() {
-            const { GAME_WIDTH, CEILING_Y_OFFSET, CEILING_HEIGHT, WALL_THICKNESS, WALL_COLOR } = this.config;
-            ceiling = Bodies.rectangle(GAME_WIDTH / 2, CEILING_Y_OFFSET, GAME_WIDTH + WALL_THICKNESS * 2, CEILING_HEIGHT, {
+            const { GAME_WIDTH, NEW_CEILING_Y_OFFSET, CEILING_HEIGHT, CEILING_WIDTH, WALL_COLOR } = this.config; // Use NEW_CEILING_Y_OFFSET and CEILING_WIDTH
+            ceiling = Bodies.rectangle(GAME_WIDTH / 2, NEW_CEILING_Y_OFFSET, CEILING_WIDTH, CEILING_HEIGHT, {
                 isStatic: true, label: "Ceiling", render: { fillStyle: WALL_COLOR }
             });
             Composite.add(this.world, ceiling);
@@ -300,10 +311,10 @@ document.addEventListener('DOMContentLoaded', () => {
             Composite.add(world, this.body);
         }
 
-        updateAI(worldContext, allDynamicObjects) {
+        updateNPC(worldContext, allDynamicObjects) {
             const now = Date.now();
 
-            // Movement AI
+            // Movement for NPCs
             if (now - this.lastMovementTime > this.movementInterval) {
                 if (Math.random() < 0.3) { // 30% chance to change direction
                     this.isMovingRight = !this.isMovingRight;
@@ -329,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.body.render.sprite.xScale = this.isMovingRight ? scaleX : -scaleX;
             }
 
-            // Liquify action AI
+            // Liquify action for NPCs
             if (now - this.lastActionTime > this.actionCooldown) {
                 this.tryLiquifyNearby(allDynamicObjects);
                 this.lastActionTime = now;
@@ -350,6 +361,54 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             return false;
+        }
+
+        checkIfAtObstacle(worldContext) {
+            // check if obstacle is in front of Coral, and if so, jump over it or turn around
+            // Check if there's a static body (wall or platform) directly in front
+            const detectionDistance = CORAL_OBSTACLE_DETECTION_RANGE;
+            const detectionStart = { x: this.body.position.x, y: this.body.position.y };
+            const detectionEnd = {
+                x: this.body.position.x + (this.isMovingRight ? detectionDistance : -detectionDistance),
+                y: this.body.position.y
+            };
+
+            const obstacles = Query.ray(Composite.allBodies(worldContext), detectionStart, detectionEnd, 10); // Check a small width ray
+            
+            let obstacleDetected = false;
+            for (const obstacle of obstacles) {
+                if (obstacle.body.isStatic && obstacle.body !== this.body) {
+                    obstacleDetected = true;
+                    break;
+                }
+            }
+
+            if (obstacleDetected) {
+                // If obstacle detected, try to liquify, jump or turn around
+                // try to liquify obstacle first if it is possible to liquify
+                // Check if the obstacle is a liquifiable object
+
+                
+                this.tryLiquifyNearby(allDynamicObjects);
+                
+            
+                        
+                    
+                
+                    
+                const coralOnGround = this.checkIfOnGround(worldContext);
+                if (coralOnGround && Math.random() < 0.8) { // High chance to jump if on ground
+                    Body.applyForce(this.body, this.body.position, { x: 0, y: -PLAYER_JUMP_FORCE_MULTIPLIER * this.body.mass * 1.2 }); // Stronger jump to clear obstacles
+                    console.log("Coral jumped over an obstacle!");
+                } else { // Otherwise, turn around
+                    this.isMovingRight = !this.isMovingRight;
+                    console.log("Coral turned around due to obstacle.");
+                }
+                this.lastMovementTime = Date.now(); // Reset movement timer after reacting
+                this.movementInterval = 500 + Math.random() * 1000; // Shorter interval after reacting
+            }
+            
+
         }
 
 
@@ -521,7 +580,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const envConfig = {
             GAME_WIDTH, GAME_HEIGHT, SINGLE_AREA_HEIGHT,
             GROUND_HEIGHT, PLATFORM_THICKNESS, GROUND_COLOR, PLATFORM_COLOR,
-            WALL_THICKNESS, WALL_COLOR, CEILING_Y_OFFSET, CEILING_HEIGHT,
+            WALL_THICKNESS, WALL_COLOR,
+            NEW_CEILING_Y_OFFSET, CEILING_HEIGHT, CEILING_WIDTH, // Pass new ceiling config
+            FLOOR_GAP_WIDTH, // Pass gap width
             BOUNCY_PLATFORM_COLOR, BOUNCY_PLATFORM_RESTITUTION, BOUNCY_PLATFORM_ACTIVE_FORCE_MULTIPLIER
         };
 
@@ -561,7 +622,7 @@ document.addEventListener('DOMContentLoaded', () => {
             { x: GAME_WIDTH * 0.3, y: FLOOR_1_TOP_Y - 120, width: 250, height: 30, label: "CustomPlatform1", color: '#CD853F' },
             { x: GAME_WIDTH * 0.7, y: FLOOR_1_TOP_Y - 220, width: 180, height: 25, label: "CustomPlatform2", color: '#D2B48C' },
             { x: GAME_WIDTH * 0.5, y: FLOOR_2_TOP_Y - 150, width: 300, height: 30, label: "CustomPlatformArea2", color: '#BC8F8F' }
-        ];
+        ]; //platform2 height initially 25
         customStaticPlatformObjects = envBuilder.createCustomPlatforms(customPlatformDefs);
 
         const bouncyPlatformsData = [
@@ -682,7 +743,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         handlePlayerMovement();
         if (coralBody) {
-            coralBody.updateAI(world, [vitaBody, ...boxStack, ...bouncyBallsArray, ...liquifierObjectsArray, ...cleanerObjectsArray]);
+            coralBody.updateNPC(world, [vitaBody, ...boxStack, ...bouncyBallsArray, ...liquifierObjectsArray, ...cleanerObjectsArray]);
         }
         
         // Bouncy platform logic (simplified from vitachaos2.js)
@@ -1030,7 +1091,7 @@ document.addEventListener('DOMContentLoaded', () => {
             Body.setVelocity(coralBody.body, { x: 0, y: 0 });
             Body.setAngularVelocity(coralBody.body, 0);
             Body.setAngle(coralBody.body, 0);
-            coralBody.lastActionTime = Date.now(); // Reset AI timers
+            coralBody.lastActionTime = Date.now(); // Reset NPC timers
             coralBody.lastMovementTime = Date.now();
         }
     }
@@ -1131,12 +1192,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (platform2) {
             const platform2_y_center = (GAME_HEIGHT - SINGLE_AREA_HEIGHT) - (PLATFORM_THICKNESS / 2);
+            const platform2_width = GAME_WIDTH - 2 * FLOOR_GAP_WIDTH; // Use FLOOR_GAP_WIDTH
             Body.setPosition(platform2, { x: GAME_WIDTH / 2, y: platform2_y_center });
-            Body.setVertices(platform2, Bodies.rectangle(GAME_WIDTH / 2, platform2_y_center, GAME_WIDTH, PLATFORM_THICKNESS).vertices);
+            Body.setVertices(platform2, Bodies.rectangle(GAME_WIDTH / 2, platform2_y_center, platform2_width, PLATFORM_THICKNESS).vertices);
         }
         if (ceiling) {
-            Body.setPosition(ceiling, { x: GAME_WIDTH / 2, y: CEILING_Y_OFFSET });
-            Body.setVertices(ceiling, Bodies.rectangle(GAME_WIDTH / 2, CEILING_Y_OFFSET, GAME_WIDTH + WALL_THICKNESS * 2, CEILING_HEIGHT).vertices);
+            // NEW_CEILING_Y_OFFSET is calculated based on BASE_GAME_HEIGHT, which is fixed.
+            Body.setPosition(ceiling, { x: GAME_WIDTH / 2, y: NEW_CEILING_Y_OFFSET });
+            Body.setVertices(ceiling, Bodies.rectangle(GAME_WIDTH / 2, NEW_CEILING_Y_OFFSET, CEILING_WIDTH, CEILING_HEIGHT).vertices);
         }
         if (leftWall) {
             Body.setPosition(leftWall, { x: -WALL_THICKNESS / 4, y: GAME_HEIGHT / 2 });
