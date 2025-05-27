@@ -1,0 +1,70 @@
+/* Styles moved from vitachaos2.html <style> block */
+/* Applied to body specifically for vitachaos2.html context,
+   consider namespacing with a class if these are too general */
+   body.vitachaos2-body { /* Added a class to scope these body styles */
+    margin: 0;
+    padding: 0;
+    background-color: #111;
+    color: white;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+/* Styles for elements within vitachaos2.html */
+.vitachaos2-body #game-container { /* Scoped to vitachaos2-body */
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.vitachaos2-body #game-plans-container { /* Scoped to vitachaos2-body */
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 10px;
+    border-radius: 5px;
+    max-width: 400px;
+    z-index: 100;
+}
+
+.vitachaos2-body #game-plans-container summary { /* Scoped to vitachaos2-body */
+    cursor: pointer;
+    font-weight: bold;
+    color: #4CAF50;
+}
+
+.vitachaos2-body #game-plans-container #game-plans { /* Scoped to vitachaos2-body and specific ID */
+    text-align: left;
+    padding-left: 20px;
+}
+
+.vitachaos2-body #game-plans-container #game-plans li { /* Scoped to vitachaos2-body and specific ID */
+    margin: 5px 0;
+}
+
+/* Styles for #controls-info and its children from vitachaos2.html */
+#controls-info {
+    position: absolute; 
+    top: 10px; 
+    right: 10px; 
+    background-color: rgba(0, 0, 0, 0.7); 
+    padding: 10px; 
+    border-radius: 5px; 
+    color: white; 
+    font-size: 14px; 
+    z-index: 100; 
+    display: none;
+}
+
+#controls-info h3 {
+    margin-top: 0; 
+    color: #4CAF50;
+}
+
+#controls-info ul {
+    padding-left: 20px; 
+    margin-bottom: 5px;
+}
