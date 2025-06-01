@@ -21,6 +21,12 @@ class Player:
 
     def set_current_area(self, area, grid_x=None, grid_y=None):
         """Set the current area for the player and position them on its grid."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import format_area_name, format_area_description, format_error
+        
         self.current_area = area
         if area:
             if grid_x is None:
@@ -33,10 +39,10 @@ class Player:
             grid_y = max(0, min(grid_y, area.grid_length - 1))
 
             self.coordinates = area.get_global_coordinates(grid_x, grid_y)
-            print(f"You are now in {area.name}. {area.description}")
+            print(f"You are now in {format_area_name(area.name)}. {format_area_description(area.description)}")
             self.look_around()
         else:
-            print("Error: Tried to move to a null area.")
+            print(format_error("Error: Tried to move to a null area."))
 
     def get_grid_position(self):
         """Get the player's position relative to the current area's grid."""
@@ -47,69 +53,82 @@ class Player:
 
     def look_around(self):
         """Look around the current area."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import (format_area_name, format_area_description, format_item_name, 
+                           format_item_description, format_npc_name, format_info, 
+                           colorize, GameColors, TextColor)
+        
         if not self.current_area:
-            print("You are floating in the void...")
+            print(colorize("You are floating in the void...", GameColors.WARNING_MESSAGE))
             return
 
         grid_x, grid_y = self.get_grid_position()
-        print(f"\n--- {self.current_area.name} ---")
-        print(self.current_area.description)
-        print(f"You are at grid position ({grid_x}, {grid_y}).")
+        print(f"\n--- {format_area_name(self.current_area.name)} ---")
+        print(format_area_description(self.current_area.description))
+        print(colorize(f"You are at grid position ({grid_x}, {grid_y}).", GameColors.INFO_MESSAGE))
 
         # Display items at current position
         objects_here = self.current_area.get_objects_at_grid_cell(grid_x, grid_y)
         items_here = [obj for obj in objects_here if isinstance(obj, Item)]
         if items_here:
-            print("Items at your feet:")
+            print(colorize("Items at your feet:", TextColor.BOLD + TextColor.BRIGHT_YELLOW))
             for item in items_here:
-                print(f"  - {item.name}: {item.description}")
+                print(f"  - {format_item_name(item.name)}: {format_item_description(item.description)}")
         
         other_game_objects_here = [obj for obj in objects_here if not isinstance(obj, Item) and not isinstance(obj, NPC)]
         if other_game_objects_here:
-            print("Objects here:")
-            for game_obj in other_game_objects_here: # Corrected to iterate over other_game_objects_here
-                print(f"  - {game_obj.name}: {game_obj.description}")
+            print(colorize("Objects here:", TextColor.BOLD + TextColor.BRIGHT_CYAN))
+            for game_obj in other_game_objects_here:
+                print(f"  - {colorize(game_obj.name, GameColors.COMPUTER_TEXT)}: {colorize(game_obj.description, TextColor.CYAN)}")
         
         # Display NPCs at current position
-        npcs_here = [obj for obj in objects_here if isinstance(obj, NPC)] # NPC is now known
+        npcs_here = [obj for obj in objects_here if isinstance(obj, NPC)]
         if npcs_here:
-            print("People here:")
+            print(colorize("People here:", TextColor.BOLD + TextColor.BRIGHT_MAGENTA))
             for npc in npcs_here:
-                print(f"  - {npc.name}")
+                print(f"  - {format_npc_name(npc.name)}")
 
-        # Display other items and NPCs in the area (simplified for now)
-        # This could be expanded to show relative directions
+        # Display other items and NPCs in the area
         if self.current_area.items:
-            print("Other items in the area:")
+            print(colorize("Other items in the area:", TextColor.BOLD + TextColor.YELLOW))
             for item in self.current_area.items:
                 if item not in items_here: # Don't list items at feet again
                     item_gx, item_gy = self.current_area.get_relative_coordinates(item.coordinates)[:2]
-                    print(f"  - {item.name} at ({int(item_gx)}, {int(item_gy)})")
+                    print(f"  - {format_item_name(item.name)} at {colorize(f'({int(item_gx)}, {int(item_gy)})', TextColor.BRIGHT_WHITE)}")
 
         if self.current_area.npcs:
-            print("Other people in the area:")
+            print(colorize("Other people in the area:", TextColor.BOLD + TextColor.MAGENTA))
             for npc in self.current_area.npcs:
                 if npc not in npcs_here:
                     npc_gx, npc_gy = self.current_area.get_relative_coordinates(npc.coordinates)[:2]
-                    print(f"  - {npc.name} at ({int(npc_gx)}, {int(npc_gy)})")
+                    print(f"  - {format_npc_name(npc.name)} at {colorize(f'({int(npc_gx)}, {int(npc_gy)})', TextColor.BRIGHT_WHITE)}")
 
         # Display area connections
         if self.current_area.connections:
-            print("Exits:")
+            print(colorize("Exits:", TextColor.BOLD + TextColor.BRIGHT_BLUE))
             for direction, area in self.current_area.connections.items():
-                print(f"  - {direction.capitalize()}: to {area.name}")
-        print("---")
+                print(f"  - {colorize(direction.capitalize(), TextColor.BRIGHT_BLUE)}: to {format_area_name(area.name)}")
+        print(colorize("---", TextColor.BRIGHT_WHITE))
 
         # Display items for sale if this area is a shop
         if hasattr(self.current_area, 'shop_stock') and self.current_area.shop_stock:
-            print("Items for sale here:")
+            print(colorize("Items for sale here:", TextColor.BOLD + GameColors.PLAYER_MONEY))
             for line in self.current_area.get_shop_listing():
-                print(f"  {line}")
+                print(f"  {colorize(line, GameColors.ITEM_VALUE)}")
 
     def move(self, direction):
         """Move the player one step in a direction or through a connection."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import format_error, format_info, format_success, colorize, TextColor
+        
         if not self.current_area:
-            print("You can't move, you're not in any area.")
+            print(format_error("You can't move, you're not in any area."))
             return
 
         grid_x, grid_y = self.get_grid_position()
@@ -125,19 +144,19 @@ class Player:
                 # Moving to a new area
                 self.set_current_area(self.current_area.connections[direction])
                 return
-            print(f"Unknown direction: {direction}. Try north, south, east, west, or an exit name.")
+            print(format_error(f"Unknown direction: {direction}. Try north, south, east, west, or an exit name."))
             return
 
         if self.current_area.is_valid_grid_position(new_grid_x, new_grid_y):
             self.coordinates = self.current_area.get_global_coordinates(new_grid_x, new_grid_y)
-            print(f"You move {direction}.")
+            print(format_info(f"You move {colorize(direction, TextColor.BRIGHT_BLUE)}."))
             moved_within_area = True
         elif direction in self.current_area.connections: # Edge of grid, try to use connection
              # Moving to a new area
              self.set_current_area(self.current_area.connections[direction])
              return
         else:
-            print("You can't go that way.")
+            print(format_error("You can't go that way."))
             return
 
         if moved_within_area:
@@ -169,20 +188,38 @@ class Player:
             # if the entire turn was uneventful.
     def teleport(self, target_area, grid_x=None, grid_y=None):
         """Teleport to a specific area, optionally to specific grid coordinates."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import format_error
+        
         if not target_area:
-            print("Teleport target area not found.")
+            print(format_error("Teleport target area not found."))
             return
         self.set_current_area(target_area, grid_x, grid_y)
 #        print(f"You teleport to {target_area.name}.") # don't need this because set_current_area already prints it
 
     def add_item(self, item):
         """Add an item to the player's inventory."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import format_success, format_item_name
+        
         self.inventory.append(item)
         item.coordinates = None # Item is no longer in the world
-        print(f"You picked up {item.name}.")
+        print(format_success(f"You picked up {format_item_name(item.name)}."))
 
     def remove_item(self, item_name):
         """Remove an item from inventory and drop it in the current area."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import format_success, format_error, format_item_name
+        
         item_to_drop = None
         for item in self.inventory:
             if item.name.lower() == item_name.lower():
@@ -191,17 +228,23 @@ class Player:
         
         if item_to_drop:
             self.inventory.remove(item_to_drop)
-            print(f"You dropped {item_to_drop.name}.")
+            print(format_success(f"You dropped {format_item_name(item_to_drop.name)}."))
             if self.current_area:
                 player_gx, player_gy = self.get_grid_position()
                 self.current_area.add_object_to_grid(item_to_drop, player_gx, player_gy)
         else:
-            print(f"You don't have '{item_name}' in your inventory.")
+            print(format_error(f"You don't have '{item_name}' in your inventory."))
 
     def pick_up(self, item_name):
         """Pick up an item from the current area."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import format_error, format_success, format_item_name
+        
         if not self.current_area:
-            print("You are not in an area to pick up items from.")
+            print(format_error("You are not in an area to pick up items from."))
             return
 
         player_gx, player_gy = self.get_grid_position()
@@ -214,31 +257,43 @@ class Player:
                     item_to_pickup = obj
                     break
                 else:
-                    print(f"You can't pick up {obj.name}.")
+                    print(format_error(f"You can't pick up {format_item_name(obj.name)}."))
                     return
         
         if item_to_pickup:
             self.current_area.remove_object_from_grid(item_to_pickup, player_gx, player_gy)
             self.add_item(item_to_pickup)
         else:
-            print(f"You don't see '{item_name}' here to pick up.")
+            print(format_error(f"You don't see '{item_name}' here to pick up."))
 
     def show_inventory(self):
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import format_item_name, format_money, colorize, TextColor, GameColors
+        
         if not self.inventory:
-            print("Your inventory is empty.")
+            print(colorize("Your inventory is empty.", GameColors.INFO_MESSAGE))
         else:
-            print("\nInventory:")
+            print(colorize("\nInventory:", TextColor.BOLD + TextColor.BRIGHT_GREEN))
             for item in self.inventory:
-                print(f"  - {item.name}")
-        print(f"Money: ${self.money}")
+                print(f"  - {format_item_name(item.name)}")
+        print(f"Money: {format_money(self.money)}")
 
     def buy_item(self, item_name_query):
         """Attempt to buy an item from the current area's shop."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import format_error, format_success, format_money, format_item_name
+        
         if not self.current_area:
-            print("You are not in any area to buy from.")
+            print(format_error("You are not in any area to buy from."))
             return False, None, 0, None
         if not hasattr(self.current_area, 'shop_stock') or not self.current_area.shop_stock:
-            print("This place doesn't seem to be selling anything.")
+            print(format_error("This place doesn't seem to be selling anything."))
             return False, None, 0, None
 
         item_instance, price = self.current_area.process_purchase(item_name_query, self.money)
@@ -246,15 +301,18 @@ class Player:
         if item_instance:
             self.money -= price
             self.add_item(item_instance) # add_item already prints a message
-            print(f"You paid ${price:.2f}. Your money: ${self.money:.2f}")
+            print(format_success(f"You paid {format_money(price)}. Your money: {format_money(self.money)}"))
             return True, item_instance, price, self.current_area.associated_stock_symbol
         else:
             # More specific feedback could come from process_purchase if we enhance it
             # For now, a general failure message.
             details = self.current_area.shop_stock.get(item_name_query.lower())
-            if not details: print(f"The shop doesn't have '{item_name_query}'.")
-            elif details['stock'] <= 0: print(f"'{item_name_query}' is out of stock.")
-            elif self.money < details['price']: print(f"You can't afford '{item_name_query}'. It costs ${details['price']:.2f}, you have ${self.money:.2f}.")
+            if not details: 
+                print(format_error(f"The shop doesn't have '{item_name_query}'."))
+            elif details['stock'] <= 0: 
+                print(format_error(f"'{item_name_query}' is out of stock."))
+            elif self.money < details['price']: 
+                print(format_error(f"You can't afford '{item_name_query}'. It costs {format_money(details['price'])}, you have {format_money(self.money)}."))
             return False, None, 0, None
 
     def view_portfolio(self):
