@@ -170,6 +170,10 @@ class AreaManager:
             if area.name.lower() == area_id_or_name.lower():
                 return area
         return None
+    
+    def get_area_by_id(self, area_id):
+        """Get an area by its exact ID."""
+        return self.areas.get(area_id)
 
     def connect_areas(self, area1_id, direction, area2_id):
         """Connect two areas in the specified direction."""

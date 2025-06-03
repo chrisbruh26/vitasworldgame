@@ -3,6 +3,7 @@
 Game Manager module for the game.
 Handles game state, setup, and command processing.
 """
+import os
 import random
 import sys # Required for stdout manipulation
 from .player import Player
@@ -11,6 +12,7 @@ from .item import Item, ItemManager
 from .npc import NPC, NPCManager
 from .coordinates import Coordinates
 from .game_objects import Computer, InfluenceSource # Import Computer and InfluenceSource
+from .save_system import SaveSystem
 
 class OutputMonitor:
     """
@@ -58,10 +60,17 @@ class GameManager:
             "A moment of calm.",
         ]
         # self.output_monitor will be initialized in run() or here if preferred
+        
+        # Initialize save system
+        self.save_system = SaveSystem(self)
 
     def initialize_game(self):
         """Initialize the game with hardcoded areas, items, NPCs for testing."""
-        print("Initializing game world...")
+        # Import colors module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import print_colored, GameColors, format_info
+
+        print_colored("Initializing game world...", GameColors.INFO_MESSAGE)
 
         # Create Areas
         park_origin = Coordinates(0,0,0)
@@ -198,7 +207,7 @@ class GameManager:
         # Place Player
         self.player.set_current_area(park, 1, 1)
 
-        print("Game initialized.")
+        print_colored("Game initialized.", GameColors.SUCCESS_MESSAGE)
         self.player.look_around()
 
     def process_command(self, command_input):
@@ -345,6 +354,72 @@ class GameManager:
                 self.show_npc_info(npc_name_query)
             else:
                 print("Usage: npcinfo <npc_name>")
+        elif action == "npc" and args and args[0] == "missions" or action == "npcmissions":
+            self.show_npc_missions()
+        elif action == "save":
+            # Handle save command
+            save_name = " ".join(args) if args else None
+            save_path = self.save_system.save_game(save_name)
+            if save_path:
+                print(f"Game saved successfully to: {os.path.basename(save_path)}")
+            else:
+                print("Failed to save game.")
+        
+        elif action == "load":
+            # Handle load command
+            if not args:
+                # List available saves if no save name provided
+                saves = self.save_system.list_saves()
+                if saves:
+                    print("Available saves:")
+                    for i, save in enumerate(saves, 1):
+                        print(f"  {i}. {save}")
+                    print("Use 'load <save_name>' or 'load <number>' to load a specific save.")
+                else:
+                    print("No save files found.")
+            else:
+                save_name = " ".join(args)
+                # Check if user entered a number instead of a name
+                if save_name.isdigit():
+                    try:
+                        saves = self.save_system.list_saves()
+                        if not saves:
+                            print("No save files found.")
+                            return
+                            
+                        index = int(save_name) - 1
+                        if 0 <= index < len(saves):
+                            save_name = saves[index]
+                            print(f"Loading save #{index + 1}: {save_name}")
+                        else:
+                            print(f"Invalid save number. Use a number between 1 and {len(saves)}.")
+                            return
+                    except Exception as e:
+                        print(f"Error processing save number: {str(e)}")
+                        return
+                
+                try:
+                    success = self.save_system.load_game(save_name)
+                    if success:
+                        print(f"Game loaded successfully from: {save_name}")
+                        self.player.look_around()  # Show the player where they are
+                    else:
+                        print(f"Failed to load game from: {save_name}")
+                except Exception as e:
+                    print(f"Error loading game: {str(e)}")
+        
+        elif action == "saves":
+            # List all available saves
+            saves = self.save_system.list_saves()
+            if saves:
+                print("Available saves:")
+                for i, save in enumerate(saves, 1):
+                    print(f"  {i}. {save}")
+            else:
+                print("No save files found.")
+                
+        elif action == "help":
+            self.show_help()
         else:
             print(f"Unknown command: {action}")
 
@@ -354,6 +429,104 @@ class GameManager:
             print(npc.get_status_info(self.game_turn))
         else:
             print(f"NPC '{npc_name_query}' not found.")
+            
+    def show_help(self):
+        """Shows a list of available commands."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import colorize, GameColors, TextColor
+        
+        print(colorize("\n=== AVAILABLE COMMANDS ===", TextColor.BOLD + TextColor.BRIGHT_CYAN))
+        
+        commands = [
+            ("Movement", "n, north, s, south, e, east, w, west", "Move in a direction"),
+            ("Look", "look, l", "Look around your current location"),
+            ("Inventory", "inventory, i", "Show your inventory"),
+            ("Get Item", "get, take, pickup <item>", "Pick up an item"),
+            ("Drop Item", "drop <item>", "Drop an item from your inventory"),
+            ("Buy Item", "buy <item>", "Buy an item from a shop"),
+            ("Interact", "interact <object>", "Interact with an object"),
+            ("Teleport", "teleport, tp <area> [x] [y]", "Teleport to an area"),
+            ("NPC Info", "npcinfo <npc>", "Show detailed info about an NPC"),
+            ("NPC Missions", "npc missions, npcmissions", "Show all NPCs with active missions or influences"),
+            ("Save Game", "save [name]", "Save your game progress (optional name)"),
+            ("Load Game", "load [name|number]", "Load a saved game (name or number from list)"),
+            ("List Saves", "saves", "List all available save files"),
+            ("Help", "help", "Show this help message"),
+            ("Quit", "quit, exit", "Exit the game")
+        ]
+        
+        for category, cmd, desc in commands:
+            print(f"{colorize(category + ':', TextColor.BOLD):<15} {colorize(cmd, GameColors.COMMAND_PROMPT):<30} {colorize(desc, GameColors.INFO_MESSAGE)}")
+        
+        print(colorize("\n=== END OF HELP ===", TextColor.BOLD + TextColor.BRIGHT_CYAN))
+        
+    def show_npc_missions(self):
+        """Shows information about all NPCs that are currently influenced or on missions."""
+        # Import colors module
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import colorize, GameColors, format_npc_name, format_item_name, format_area_name, TextColor
+        
+        influenced_npcs = self.npc_manager.get_influenced_npcs()
+        
+        if not influenced_npcs:
+            print(colorize("No NPCs are currently influenced or on missions.", GameColors.INFO_MESSAGE))
+            return
+            
+        print(colorize("\n=== NPC MISSIONS AND INFLUENCES ===", TextColor.BOLD + TextColor.BRIGHT_CYAN))
+        
+        for npc in influenced_npcs:
+            # Print NPC name and location
+            print(f"\n{format_npc_name(npc.name)} at {format_area_name(npc.location.name if npc.location else 'Unknown')}")
+            
+            # If NPC is on a mission
+            if npc.current_mission_type:
+                mission_type = colorize(f"Mission Type: {npc.current_mission_type}", GameColors.NPC_INFLUENCE_ACTIVE)
+                mission_item = colorize(f"Target Item: {format_item_name(npc.mission_item_name)}", GameColors.NPC_INFLUENCE_ACTIVE)
+                mission_area = colorize(f"Target Area: {format_area_name(npc.mission_target_area_name)}", GameColors.NPC_INFLUENCE_ACTIVE)
+                mission_coords = colorize(f"Target Coords: {npc.mission_target_coords}", GameColors.NPC_INFLUENCE_ACTIVE)
+                mission_phase = colorize(f"Current Phase: {npc.mission_phase}", GameColors.NPC_INFLUENCE_ACTIVE)
+                
+                print(f"  {mission_type}")
+                print(f"  {mission_item}")
+                print(f"  {mission_area}")
+                print(f"  {mission_coords}")
+                print(f"  {mission_phase}")
+                
+                # Check if NPC has the mission item
+                has_mission_item = False
+                for item in npc.inventory:
+                    if item.name.lower() == npc.mission_item_name.lower():
+                        has_mission_item = True
+                        break
+                
+                item_status = "Has Item: Yes" if has_mission_item else "Has Item: No"
+                print(f"  {colorize(item_status, TextColor.BRIGHT_GREEN if has_mission_item else TextColor.BRIGHT_RED)}")
+            
+            # If NPC is influenced for shopping
+            elif npc.is_currently_shopping and npc.shopping_target_item_name:
+                shopping_target = colorize(f"Craving: {format_item_name(npc.shopping_target_item_name)}", GameColors.NPC_INFLUENCE_ACTIVE)
+                print(f"  {shopping_target}")
+                
+                # Check if NPC has the shopping target item
+                has_target_item = False
+                for item in npc.inventory:
+                    if item.name.lower() == npc.shopping_target_item_name.lower():
+                        has_target_item = True
+                        break
+                
+                item_status = "Has Item: Yes" if has_target_item else "Has Item: No"
+                print(f"  {colorize(item_status, TextColor.BRIGHT_GREEN if has_target_item else TextColor.BRIGHT_RED)}")
+                
+                if npc.shopping_frustration_cooldown > 0:
+                    frustration = colorize(f"Frustration Cooldown: {npc.shopping_frustration_cooldown} turns", TextColor.BRIGHT_RED)
+                    print(f"  {frustration}")
+        
+        print(colorize("\n=== END OF NPC MISSIONS ===", TextColor.BOLD + TextColor.BRIGHT_CYAN))
 
     def find_entity_coordinates(self, entity_name_query):
         """Find and print coordinates of NPCs or Items."""
@@ -663,8 +836,12 @@ class GameManager:
 
     def run(self):
         """Main game loop."""
-        print("\nWelcome to the Simplified Game!")
-        print("Type 'quit' to exit.")
+        # Import colors module
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from colors import print_colored, colorize, GameColors, format_info, format_ambient
+
+        print_colored("\nWelcome to Vita Game Hustle!", GameColors.PLAYER_NAME)
+        print_colored("Type 'help' for a list of commands or 'quit' to exit.", GameColors.INFO_MESSAGE)
 
         original_stdout = sys.stdout
         output_monitor = OutputMonitor(original_stdout)
@@ -673,7 +850,7 @@ class GameManager:
         while self.running:
             # The input() prompt itself will write to the monitor.
             # We reset the monitor's flag *after* the prompt and *before* game logic.
-            command_input = input("\n> ").strip()
+            command_input = input(f"\n{colorize('> ', GameColors.COMMAND_PROMPT)}").strip()
             
             output_monitor.reset() # Reset for game logic output for this turn
 
@@ -689,12 +866,12 @@ class GameManager:
             if self.running:
                 # Scenario 1: Absolutely nothing was printed by game logic this turn.
                 if not buffered_texts:
-                    print(random.choice(self._AMBIENT_NO_EVENT_MESSAGES))
+                    print(format_ambient(random.choice(self._AMBIENT_NO_EVENT_MESSAGES)))
                 # Scenario 2: Only a basic player movement confirmation or failure was printed.
                 elif len(buffered_texts) == 1 and \
                      (buffered_texts[0].startswith("You move ") or \
                       buffered_texts[0] == "You can't go that way."):
-                    print(random.choice(self._AMBIENT_NO_EVENT_MESSAGES))
+                    print(format_ambient(random.choice(self._AMBIENT_NO_EVENT_MESSAGES)))
                 # Otherwise, enough happened, or a different kind of single message was printed.
 
         sys.stdout = original_stdout # Restore original stdout

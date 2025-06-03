@@ -228,7 +228,14 @@ class NPC:
                             failed_to_acquire_mission_item = True
                     
                     if failed_to_acquire_mission_item:
-                        msg = f"{self.name} gives up on the mission to deliver {self.mission_item_name} as it seems unobtainable right now."
+                        # Import colors module
+                        import sys
+                        import os
+                        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                        from colors import colorize, GameColors, format_item_name, format_npc_name, TextColor
+                        
+                        msg = f"{format_npc_name(self.name)} gives up on the mission to deliver {format_item_name(self.mission_item_name)} as it seems unobtainable right now."
+                        msg = colorize(msg, TextColor.BRIGHT_RED)  # Use red for mission failure
                         self.recently_processed_influences[self.active_mission_influence_id] = current_game_turn + random.randint(15, 25)
                         self._clear_mission_state()
                         return {'message': msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
@@ -257,13 +264,27 @@ class NPC:
                     dx = 1 if self.mission_target_coords[0] > my_gx else -1 if self.mission_target_coords[0] < my_gx else 0
                     dy = 1 if self.mission_target_coords[1] > my_gy else -1 if self.mission_target_coords[1] < my_gy else 0
                     if self.move_on_grid(dx, dy):
+                        # Import colors module
+                        import sys
+                        import os
+                        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                        from colors import colorize, GameColors, format_item_name, format_npc_name
+                        
                         self.action_cooldown = 1
-                        return {'message': f"{self.name} heads towards the offering spot for {self.mission_item_name}.", 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+                        mission_msg = f"{format_npc_name(self.name)} heads towards the offering spot for {format_item_name(self.mission_item_name)}."
+                        return {'message': colorize(mission_msg, GameColors.NPC_INFLUENCE_ACTIVE), 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
             
             elif self.mission_phase == "deliver":
                 if mission_item_in_inventory:
+                    # Import colors module
+                    import sys
+                    import os
+                    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    from colors import colorize, GameColors, format_item_name, format_npc_name
+                    
                     drop_msg = self.drop_item_from_inventory(mission_item_in_inventory, self.mission_target_coords[0], self.mission_target_coords[1])
-                    delivery_msg = f"{self.name} carefully places the {mission_item_in_inventory.name} at {self.mission_target_coords} in {self.location.name} as an offering. {drop_msg}"
+                    delivery_msg = f"{format_npc_name(self.name)} carefully places the {format_item_name(mission_item_in_inventory.name)} at {self.mission_target_coords} in {self.location.name} as an offering. "
+                    delivery_msg += colorize(drop_msg, GameColors.NPC_INFLUENCE_ACTIVE)
                     self.recently_processed_influences[self.active_mission_influence_id] = current_game_turn + random.randint(20, 40) # Longer cooldown after completing mission
                     self._clear_mission_state()
                     self.action_cooldown = random.randint(2,4)
@@ -318,11 +339,17 @@ class NPC:
                                             self.is_currently_shopping = True 
                                             self.action_cooldown = 0 
                                             
+                                            # Import colors module
+                                            import sys
+                                            import os
+                                            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                                            from colors import colorize, GameColors
+                                            
                                             msg = f"{self.name} notices the {obj.name}. "
                                             if obj.target_item_name:
-                                                msg += f"Suddenly, they feel a strong craving for {obj.target_item_name}!"
+                                                msg += colorize(f"Suddenly, they feel a strong craving for {obj.target_item_name}!", GameColors.NPC_INFLUENCE_ACTIVE)
                                             else:
-                                                msg += obj.influence_message
+                                                msg += colorize(obj.influence_message, GameColors.NPC_INFLUENCE_ACTIVE)
                                             return {'message': msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
                                     
                                     elif obj.action_type == "deliver_item" and not self.current_mission_type: # Not already on a mission
@@ -335,6 +362,12 @@ class NPC:
                                             # Can't afford to acquire the item for delivery if it's not free
                                             continue 
 
+                                        # Import colors module
+                                        import sys
+                                        import os
+                                        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                                        from colors import colorize, GameColors, format_item_name, format_npc_name, format_area_name
+                                        
                                         self.current_mission_type = "deliver_item"
                                         self.mission_item_name = obj.delivery_item_name
                                         self.mission_target_area_name = obj.delivery_target_area_name
@@ -343,7 +376,9 @@ class NPC:
                                         self.active_mission_influence_id = obj.id
                                         self.action_cooldown = 0
 
-                                        msg = f"{self.name} feels a divine calling from the {obj.name}! They must find a {self.mission_item_name} and bring it to {self.mission_target_area_name}."
+                                        msg = f"{format_npc_name(self.name)} feels a divine calling from the {obj.name}! "
+                                        mission_details = f"They must find a {format_item_name(self.mission_item_name)} and bring it to {format_area_name(self.mission_target_area_name)}."
+                                        msg += colorize(mission_details, GameColors.NPC_INFLUENCE_ACTIVE)
                                         return {'message': msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
 
         
@@ -763,9 +798,28 @@ class NPCManager:
             if npc.name.lower() == npc_id_or_name.lower():
                 return npc
         return None
+        
+    def get_influenced_npcs(self):
+        """Returns a list of NPCs that are currently influenced or on a mission."""
+        influenced_npcs = []
+        for npc in self.npcs.values():
+            # Check if NPC is influenced for shopping
+            if npc.is_currently_shopping and npc.shopping_target_item_name:
+                influenced_npcs.append(npc)
+            # Check if NPC is on a mission
+            elif npc.current_mission_type:
+                influenced_npcs.append(npc)
+        return influenced_npcs
 
     def update_all_npcs(self, game_turn):
         messages = []
+        
+        # Safety check to ensure npcs is a dictionary
+        if not isinstance(self.npcs, dict):
+            print(f"Warning: NPC manager's npcs attribute is not a dictionary. It's a {type(self.npcs)}. Resetting to empty dictionary.")
+            self.npcs = {}
+            return messages
+            
         # Iterate over a copy of values if NPCs could be removed during iteration, though not currently the case.
         for npc_obj in list(self.npcs.values()): 
             original_location = npc_obj.location # Capture location BEFORE action
