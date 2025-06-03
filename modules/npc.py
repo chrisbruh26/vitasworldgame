@@ -253,28 +253,59 @@ class NPC:
                     pass # Rely on general movement for now, or specific travel logic in section 3.
 
             elif self.mission_phase == "travel_to_spot":
+                # Debug logging
+                print(f"DEBUG: {self.name} in travel_to_spot phase at {my_gx}, {my_gy}, target: {self.mission_target_coords}")
+                print(f"DEBUG: Mission item in inventory: {mission_item_in_inventory is not None}")
+                
                 if not mission_item_in_inventory:
+                    print(f"DEBUG: {self.name} lost mission item, reverting to acquire phase")
                     self.mission_phase = "acquire_item" # Lost item
                 elif self.location.name.lower() != self.mission_target_area_name.lower():
+                    print(f"DEBUG: {self.name} in wrong area ({self.location.name} vs {self.mission_target_area_name}), reverting to travel_to_area phase")
                     self.mission_phase = "travel_to_area" # Wrong area
+                elif not isinstance(self.mission_target_coords, tuple) or len(self.mission_target_coords) < 2:
+                    print(f"ERROR: Invalid mission_target_coords: {self.mission_target_coords}, fixing...")
+                    # Try to fix it - use center of area as fallback
+                    self.mission_target_coords = (self.location.grid_width // 2, self.location.grid_length // 2)
+                    print(f"DEBUG: Fixed mission_target_coords to {self.mission_target_coords}")
                 elif (my_gx, my_gy) == self.mission_target_coords:
+                    print(f"DEBUG: {self.name} reached target spot, advancing to deliver phase")
                     self.mission_phase = "deliver"
                     # Fall through
                 else: # Move towards target_coords
-                    dx = 1 if self.mission_target_coords[0] > my_gx else -1 if self.mission_target_coords[0] < my_gx else 0
-                    dy = 1 if self.mission_target_coords[1] > my_gy else -1 if self.mission_target_coords[1] < my_gy else 0
-                    if self.move_on_grid(dx, dy):
-                        # Import colors module
-                        import sys
-                        import os
-                        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                        from colors import colorize, GameColors, format_item_name, format_npc_name
+                    # Import colors module
+                    import sys
+                    import os
+                    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    from colors import colorize, GameColors, format_item_name, format_npc_name
+                    
+                    try:
+                        # Ensure coordinates are integers
+                        target_gx = int(self.mission_target_coords[0])
+                        target_gy = int(self.mission_target_coords[1])
+                        print(f"DEBUG: {self.name} moving towards ({target_gx}, {target_gy}) from ({my_gx}, {my_gy})")
+                        
+                        dx = 1 if target_gx > my_gx else -1 if target_gx < my_gx else 0
+                        dy = 1 if target_gy > my_gy else -1 if target_gy < my_gy else 0
+                        
+                        move_success = self.move_on_grid(dx, dy)
+                        print(f"DEBUG: Move attempt {'succeeded' if move_success else 'failed'} with dx={dx}, dy={dy}")
                         
                         self.action_cooldown = 1
                         mission_msg = f"{format_npc_name(self.name)} heads towards the offering spot for {format_item_name(self.mission_item_name)}."
                         return {'message': colorize(mission_msg, GameColors.NPC_INFLUENCE_ACTIVE), 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+                    except Exception as e:
+                        print(f"ERROR during travel_to_spot movement: {e}")
+                        # Emergency fallback - just advance to deliver phase at current spot
+                        self.mission_target_coords = (my_gx, my_gy)
+                        self.mission_phase = "deliver"
+                        return {'message': f"{self.name} seems confused about where to go, but decides this spot will do.", 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
             
             elif self.mission_phase == "deliver":
+                # Debug logging
+                print(f"DEBUG: {self.name} in delivery phase at {my_gx}, {my_gy}, target: {self.mission_target_coords}")
+                print(f"DEBUG: Mission item in inventory: {mission_item_in_inventory is not None}")
+                
                 if mission_item_in_inventory:
                     # Import colors module
                     import sys
@@ -282,14 +313,41 @@ class NPC:
                     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                     from colors import colorize, GameColors, format_item_name, format_npc_name
                     
-                    drop_msg = self.drop_item_from_inventory(mission_item_in_inventory, self.mission_target_coords[0], self.mission_target_coords[1])
-                    delivery_msg = f"{format_npc_name(self.name)} carefully places the {format_item_name(mission_item_in_inventory.name)} at {self.mission_target_coords} in {self.location.name} as an offering. "
-                    delivery_msg += colorize(drop_msg, GameColors.NPC_INFLUENCE_ACTIVE)
-                    self.recently_processed_influences[self.active_mission_influence_id] = current_game_turn + random.randint(20, 40) # Longer cooldown after completing mission
-                    self._clear_mission_state()
-                    self.action_cooldown = random.randint(2,4)
-                    return {'message': delivery_msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+                    # Ensure mission_target_coords is a valid tuple
+                    if not isinstance(self.mission_target_coords, tuple) or len(self.mission_target_coords) < 2:
+                        print(f"ERROR: Invalid mission_target_coords: {self.mission_target_coords}, fixing...")
+                        # Try to fix it - use current position as fallback
+                        self.mission_target_coords = (my_gx, my_gy)
+                    
+                    try:
+                        # Ensure coordinates are integers
+                        target_x = int(self.mission_target_coords[0])
+                        target_y = int(self.mission_target_coords[1])
+                        
+                        print(f"DEBUG: Attempting to drop {mission_item_in_inventory.name} at ({target_x}, {target_y})")
+                        drop_msg = self.drop_item_from_inventory(mission_item_in_inventory, target_x, target_y)
+                        delivery_msg = f"{format_npc_name(self.name)} carefully places the {format_item_name(mission_item_in_inventory.name)} at ({target_x}, {target_y}) in {self.location.name} as an offering. "
+                        delivery_msg += colorize(drop_msg, GameColors.NPC_INFLUENCE_ACTIVE)
+                        self.recently_processed_influences[self.active_mission_influence_id] = current_game_turn + random.randint(20, 40) # Longer cooldown after completing mission
+                        self._clear_mission_state()
+                        self.action_cooldown = random.randint(2,4)
+                        return {'message': delivery_msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+                    except Exception as e:
+                        print(f"ERROR during delivery: {e}")
+                        # Emergency fallback - drop at current position
+                        try:
+                            drop_msg = self.drop_item_from_inventory(mission_item_in_inventory, my_gx, my_gy)
+                            delivery_msg = f"{format_npc_name(self.name)} had trouble with the offering spot, so places the {format_item_name(mission_item_in_inventory.name)} right here instead. "
+                            delivery_msg += colorize(drop_msg, GameColors.NPC_INFLUENCE_ACTIVE)
+                            self._clear_mission_state()
+                            return {'message': delivery_msg, 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
+                        except Exception as e2:
+                            print(f"CRITICAL ERROR during emergency delivery: {e2}")
+                            # Last resort - just clear the mission
+                            self._clear_mission_state()
+                            return {'message': f"{self.name} seems confused and gives up on their mission.", 'purchase_info': None, 'flee_event': None, 'structured_action_details': None}
                 else: # Lost item just before delivery
+                    print(f"DEBUG: {self.name} lost the mission item just before delivery, reverting to acquire phase")
                     self.mission_phase = "acquire_item" 
                     # Fall through to general logic which might try to re-acquire
 
@@ -368,12 +426,25 @@ class NPC:
                                         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                                         from colors import colorize, GameColors, format_item_name, format_npc_name, format_area_name
                                         
+                                        print(f"DEBUG: Assigning delivery mission to {self.name}")
+                                        print(f"DEBUG: Item: {obj.delivery_item_name}, Target area: {obj.delivery_target_area_name}")
+                                        print(f"DEBUG: Target coords: {obj.delivery_target_coords}, type: {type(obj.delivery_target_coords)}")
+                                        
                                         self.current_mission_type = "deliver_item"
                                         self.mission_item_name = obj.delivery_item_name
                                         self.mission_target_area_name = obj.delivery_target_area_name
-                                        self.mission_target_coords = obj.delivery_target_coords
+                                        # Ensure coordinates are stored as a tuple of integers
+                                        if isinstance(obj.delivery_target_coords, tuple) and len(obj.delivery_target_coords) >= 2:
+                                            self.mission_target_coords = (int(obj.delivery_target_coords[0]), int(obj.delivery_target_coords[1]))
+                                        else:
+                                            print(f"WARNING: Invalid delivery target coordinates: {obj.delivery_target_coords}")
+                                            # Use center of current area as fallback
+                                            self.mission_target_coords = (self.location.grid_width // 2, self.location.grid_length // 2)
+                                            
                                         self.mission_phase = "acquire_item"
                                         self.active_mission_influence_id = obj.id
+                                        
+                                        print(f"DEBUG: Mission assigned. Target coords set to: {self.mission_target_coords}, type: {type(self.mission_target_coords)}")
                                         self.action_cooldown = 0
 
                                         msg = f"{format_npc_name(self.name)} feels a divine calling from the {obj.name}! "

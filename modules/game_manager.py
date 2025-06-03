@@ -116,12 +116,13 @@ class GameManager:
         yellow_star = Item(name="Yellow Star", description="A bright yellow star.", value=0, coordinates=park.get_global_coordinates(5,5))
         park.add_object_to_grid(yellow_star, 2, 2)
 
-        ysx = 5
-        ysy = 5
+        ysx = 3
+        ysy = 3
         for i in range(5):
             ysx+=1
             ysy+=1
             park.add_object_to_grid(yellow_star, ysx, ysy)
+            print(f"yellow star added to {ysx}, {ysy}")
 
         self.item_manager.items_master_list[yellow_star.id] = yellow_star
 

@@ -17,6 +17,65 @@ class SaveSystem:
         
         # Create saves directory if it doesn't exist
         os.makedirs(self.save_directory, exist_ok=True)
+        
+    def _serialize_dict(self, dictionary):
+        """
+        Helper method to serialize dictionaries with non-string keys.
+        Converts all keys to strings for JSON compatibility.
+        
+        Args:
+            dictionary (dict): Dictionary to serialize
+            
+        Returns:
+            dict: Serialized dictionary with string keys
+        """
+        if not isinstance(dictionary, dict):
+            return {}
+            
+        serialized = {}
+        for key, value in dictionary.items():
+            # Convert key to string
+            str_key = str(key)
+            
+            # Handle nested dictionaries
+            if isinstance(value, dict):
+                serialized[str_key] = self._serialize_dict(value)
+            else:
+                serialized[str_key] = value
+                
+        return serialized
+        
+    def _deserialize_dict(self, serialized_dict):
+        """
+        Helper method to deserialize dictionaries.
+        
+        Args:
+            serialized_dict (dict): Serialized dictionary
+            
+        Returns:
+            dict: Deserialized dictionary
+        """
+        if not isinstance(serialized_dict, dict):
+            return {}
+            
+        deserialized = {}
+        for key, value in serialized_dict.items():
+            # Try to convert numeric keys back to integers
+            try:
+                if key.isdigit():
+                    key = int(key)
+                elif key.replace('.', '', 1).isdigit() and key.count('.') == 1:
+                    key = float(key)
+            except (ValueError, AttributeError):
+                pass  # Keep key as string if conversion fails
+                
+            # Handle nested dictionaries
+            if isinstance(value, dict):
+                deserialized[key] = self._deserialize_dict(value)
+            else:
+                deserialized[key] = value
+                
+        return deserialized
     
     def save_game(self, save_name=None):
         """
@@ -320,7 +379,19 @@ class SaveSystem:
                     'desire_to_change_area_chance': getattr(npc, 'desire_to_change_area_chance', 0.05),
                     'shopping_target_item_name': getattr(npc, 'shopping_target_item_name', None),
                     'is_fleeing': getattr(npc, 'is_fleeing', False),
-                    'flee_timer': getattr(npc, 'flee_timer', 0)
+                    'flee_timer': getattr(npc, 'flee_timer', 0),
+                    # Mission-related attributes
+                    'current_mission_type': getattr(npc, 'current_mission_type', None),
+                    'mission_item_name': getattr(npc, 'mission_item_name', None),
+                    'mission_target_area_name': getattr(npc, 'mission_target_area_name', None),
+                    'mission_target_coords': list(getattr(npc, 'mission_target_coords', (None, None))) if getattr(npc, 'mission_target_coords', None) is not None else None,
+                    'mission_phase': getattr(npc, 'mission_phase', None),
+                    'active_mission_influence_id': getattr(npc, 'active_mission_influence_id', None),
+                    # Additional attributes for influence tracking
+                    'recently_processed_influences': self._serialize_dict(getattr(npc, 'recently_processed_influences', {})),
+                    'active_influence_source_id': getattr(npc, 'active_influence_source_id', None),
+                    'recently_failed_to_buy': self._serialize_dict(getattr(npc, 'recently_failed_to_buy', {})),
+                    'shopping_frustration_cooldown': getattr(npc, 'shopping_frustration_cooldown', 0)
                 }
                 
                 npcs.append(npc_data)
@@ -692,6 +763,27 @@ class SaveSystem:
                 npc.shopping_target_item_name = npc_data.get('shopping_target_item_name')
                 npc.is_fleeing = npc_data.get('is_fleeing', False)
                 npc.flee_timer = npc_data.get('flee_timer', 0)
+                
+                # Restore mission-related attributes
+                npc.current_mission_type = npc_data.get('current_mission_type')
+                npc.mission_item_name = npc_data.get('mission_item_name')
+                npc.mission_target_area_name = npc_data.get('mission_target_area_name')
+                
+                # Convert mission_target_coords from list back to tuple
+                mission_coords = npc_data.get('mission_target_coords')
+                if isinstance(mission_coords, list) and len(mission_coords) >= 2:
+                    npc.mission_target_coords = tuple(mission_coords[:2])  # Take only the first two elements
+                else:
+                    npc.mission_target_coords = None
+                    
+                npc.mission_phase = npc_data.get('mission_phase')
+                npc.active_mission_influence_id = npc_data.get('active_mission_influence_id')
+                
+                # Restore influence tracking attributes
+                npc.recently_processed_influences = self._deserialize_dict(npc_data.get('recently_processed_influences', {}))
+                npc.active_influence_source_id = npc_data.get('active_influence_source_id')
+                npc.recently_failed_to_buy = self._deserialize_dict(npc_data.get('recently_failed_to_buy', {}))
+                npc.shopping_frustration_cooldown = npc_data.get('shopping_frustration_cooldown', 0)
                 
                 # Restore inventory
                 from .item import Item
