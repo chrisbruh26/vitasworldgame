@@ -12,6 +12,7 @@ from .item import Item, ItemManager
 from .npc import NPC, NPCManager
 from .coordinates import Coordinates
 from .game_objects import Computer, InfluenceSource # Import Computer and InfluenceSource
+from .save_system import SaveSystem
 
 class OutputMonitor:
     """
@@ -59,7 +60,414 @@ class GameManager:
             "A moment of calm.",
         ]
         # self.output_monitor will be initialized in run() or here if preferred
+        
+        # Initialize save system
+        self.save_system = SaveSystem(self)
 
+    def create_area_complex(self, complex_name, origin_coords, reference_area=None, reference_direction=None, distance=40):
+        """
+        Helper method to create a new area complex.
+        
+        Args:
+            complex_name: Name of the complex
+            origin_coords: Explicit coordinates, or None to calculate from reference
+            reference_area: Area to position relative to (if origin_coords is None)
+            reference_direction: Direction from reference area ('north', 'south', 'east', 'west')
+            distance: Distance from reference area
+            
+        Returns:
+            The created AreaGroup
+        """
+        if origin_coords is None and reference_area and reference_direction:
+            # Calculate origin based on reference area and direction
+            if reference_direction == "north":
+                origin_coords = Coordinates(
+                    reference_area.area_origin_coords.x,
+                    reference_area.area_origin_coords.y - distance,
+                    reference_area.area_origin_coords.z
+                )
+            elif reference_direction == "south":
+                origin_coords = Coordinates(
+                    reference_area.area_origin_coords.x,
+                    reference_area.area_origin_coords.y + distance,
+                    reference_area.area_origin_coords.z
+                )
+            elif reference_direction == "east":
+                origin_coords = Coordinates(
+                    reference_area.area_origin_coords.x + distance,
+                    reference_area.area_origin_coords.y,
+                    reference_area.area_origin_coords.z
+                )
+            elif reference_direction == "west":
+                origin_coords = Coordinates(
+                    reference_area.area_origin_coords.x - distance,
+                    reference_area.area_origin_coords.y,
+                    reference_area.area_origin_coords.z
+                )
+            else:
+                # Default to same coordinates as reference area
+                origin_coords = Coordinates(
+                    reference_area.area_origin_coords.x,
+                    reference_area.area_origin_coords.y,
+                    reference_area.area_origin_coords.z
+                )
+        
+        # Create and return the area group
+        return self.area_manager.create_area_group(complex_name, origin_coords)
+    
+    def _initialize_mall_complex(self, park):
+        """
+        Initialize the mall complex to the west of the park.
+        This demonstrates how to use the AreaGroup system to create a complex of connected areas.
+        """
+        from colors import print_colored, GameColors
+        
+        # Create a mall complex group with origin to the west of the park
+        mall_group = self.create_area_complex("Vita Mall Complex", None, park, "west", 40)
+        
+        # Create the mall entrance area (this will be at the group's origin)
+        mall_entrance = Area(
+            name="Vita Mall Entrance", 
+            description="A grand entrance to the Vita Mall. Gleaming glass doors welcome shoppers to a world of commerce.",
+            grid_width=12, 
+            grid_length=8
+        )
+        mall_entrance.associated_stock_symbol = "VMALL"  # Mall's stock symbol
+        mall_group.add_area(mall_entrance, "center")
+        
+        # Create the main concourse/walkway
+        main_concourse = Area(
+            name="Main Concourse", 
+            description="The central walkway of the mall. Shops line both sides, and the polished floor reflects the bright overhead lights.",
+            grid_width=20, 
+            grid_length=15
+        )
+        mall_group.add_area(main_concourse, {"from": mall_entrance.id, "direction": "west", "distance": 15})
+        
+        # Create the food court
+        food_court = Area(
+            name="Food Court", 
+            description="A bustling food court with various eateries. The air is filled with delicious aromas.",
+            grid_width=15, 
+            grid_length=15
+        )
+        mall_group.add_area(food_court, {"from": main_concourse.id, "direction": "north", "distance": 20})
+        
+        # Create individual stores
+        tech_store = Area(
+            name="TechnoVita", 
+            description="A sleek technology store selling the latest gadgets and electronics.",
+            grid_width=10, 
+            grid_length=8
+        )
+        tech_store.associated_stock_symbol = "TECH"  # Tech store stock symbol
+        mall_group.add_area(tech_store, {"from": main_concourse.id, "direction": "south", "distance": 12})
+        
+        # Add a clothing store
+        fashion_store = Area(
+            name="VitaFashion", 
+            description="A trendy clothing store with the latest styles.",
+            grid_width=10, 
+            grid_length=8
+        )
+        fashion_store.associated_stock_symbol = "VFASH"  # Fashion store stock symbol
+        mall_group.add_area(fashion_store, {"from": main_concourse.id, "direction": "west", "distance": 15})
+        
+        # Add a luxury store
+        luxury_store = Area(
+            name="Luxe Vita", 
+            description="An exclusive luxury goods store with high-end products.",
+            grid_width=8, 
+            grid_length=8
+        )
+        luxury_store.associated_stock_symbol = "LUXV"  # Luxury store stock symbol
+        mall_group.add_area(luxury_store, {"from": fashion_store.id, "direction": "west", "distance": 12})
+        
+        # Connect areas within the mall manually for more control
+        # Main connections
+        mall_group.connect_areas_in_group(mall_entrance.id, "west", main_concourse.id)
+        mall_group.connect_areas_in_group(main_concourse.id, "north", food_court.id)
+        mall_group.connect_areas_in_group(main_concourse.id, "south", tech_store.id)
+        mall_group.connect_areas_in_group(main_concourse.id, "west", fashion_store.id)
+        mall_group.connect_areas_in_group(fashion_store.id, "west", luxury_store.id)
+        
+        # Add some items to the stores
+        # Tech store items
+        laptop = Item(name="Laptop", description="A high-performance laptop with the latest specs.")
+        tech_store.add_item_to_shop(laptop, price=1200.00, quantity=5)
+        
+        smartphone = Item(name="Smartphone", description="The newest smartphone model with advanced features.")
+        tech_store.add_item_to_shop(smartphone, price=800.00, quantity=10)
+        
+        # Fashion store items
+        designer_jacket = Item(name="Designer Jacket", description="A stylish designer jacket that's all the rage.")
+        fashion_store.add_item_to_shop(designer_jacket, price=350.00, quantity=8)
+        
+        luxury_watch = Item(name="Luxury Watch", description="An exquisite timepiece that exudes elegance.")
+        luxury_store.add_item_to_shop(luxury_watch, price=5000.00, quantity=3)
+        
+        # Food court items
+        pizza = Item(name="Pizza Slice", description="A delicious slice of pizza.")
+        food_court.add_item_to_shop(pizza, price=4.50, quantity=float('inf'))
+        
+        soda = Item(name="Soda", description="A refreshing carbonated beverage.")
+        food_court.add_item_to_shop(soda, price=2.00, quantity=float('inf'))
+        
+        # Add NPCs to the mall
+        # Mall entrance security guard
+        security_guard = NPC(
+            name="Security Bot", 
+            description="A robotic security guard monitoring the mall entrance.", 
+            start_coords=mall_entrance.get_global_coordinates(6, 4),
+            area=mall_entrance, 
+            money=100
+        )
+        mall_entrance.add_object_to_grid(security_guard, 6, 4)
+        self.npc_manager.add_npc(security_guard)
+        
+        # Food court vendor
+        food_vendor = NPC(
+            name="Chef Byte", 
+            description="A cheerful robot chef running a popular food stall.", 
+            start_coords=food_court.get_global_coordinates(7, 7),
+            area=food_court, 
+            money=250
+        )
+        food_court.add_object_to_grid(food_vendor, 7, 7)
+        self.npc_manager.add_npc(food_vendor)
+        
+        # Tech store salesperson
+        tech_salesperson = NPC(
+            name="TechBot", 
+            description="An enthusiastic robot with extensive knowledge of the latest gadgets.", 
+            start_coords=tech_store.get_global_coordinates(5, 4),
+            area=tech_store, 
+            money=150
+        )
+        tech_store.add_object_to_grid(tech_salesperson, 5, 4)
+        self.npc_manager.add_npc(tech_salesperson)
+        
+        # Fashion store assistant
+        fashion_assistant = NPC(
+            name="Styla", 
+            description="A stylish robot with impeccable fashion sense.", 
+            start_coords=fashion_store.get_global_coordinates(5, 4),
+            area=fashion_store, 
+            money=200
+        )
+        fashion_store.add_object_to_grid(fashion_assistant, 5, 4)
+        self.npc_manager.add_npc(fashion_assistant)
+        
+        # Luxury store manager
+        luxury_manager = NPC(
+            name="Luxbot", 
+            description="A sophisticated robot with an air of exclusivity.", 
+            start_coords=luxury_store.get_global_coordinates(4, 4),
+            area=luxury_store, 
+            money=500
+        )
+        luxury_store.add_object_to_grid(luxury_manager, 4, 4)
+        self.npc_manager.add_npc(luxury_manager)
+        
+        # Shopper in main concourse
+        shopper = NPC(
+            name="ShopperBot", 
+            description="A robot browsing the stores with shopping bags in hand.", 
+            start_coords=main_concourse.get_global_coordinates(10, 7),
+            area=main_concourse, 
+            money=300
+        )
+        main_concourse.add_object_to_grid(shopper, 10, 7)
+        self.npc_manager.add_npc(shopper)
+        
+        # Register all mall areas with the main area manager
+        self.area_manager.register_areas_from_group("Vita Mall Complex")
+        
+        # Connect the mall entrance to the park
+        self.area_manager.connect_areas(park.id, "west", mall_entrance.id)
+        
+        print_colored("Mall complex initialized and connected to the park.", GameColors.SUCCESS_MESSAGE)
+        
+    def _initialize_tech_campus(self, reference_area):
+        """
+        Initialize a technology campus complex to the north of the reference area.
+        This complex represents a high-tech research and development campus.
+        """
+        from colors import print_colored, GameColors
+        
+        # Create the tech campus group
+        tech_campus_group = self.create_area_complex(
+            "Vita Tech Campus", 
+            None,
+            reference_area, 
+            "north", 
+            40
+        )
+        
+        # Create the main entrance/lobby
+        campus_entrance = Area(
+            name="Tech Campus Entrance", 
+            description="A futuristic lobby with sleek glass walls and holographic displays welcoming visitors to the Vita Tech Campus.",
+            grid_width=12, 
+            grid_length=10
+        )
+        campus_entrance.associated_stock_symbol = "VTECH"  # Tech campus stock symbol
+        tech_campus_group.add_area(campus_entrance, "center")
+        
+        # Create the research lab
+        research_lab = Area(
+            name="Research Laboratory", 
+            description="A state-of-the-art laboratory with advanced equipment and robots working on cutting-edge technology.",
+            grid_width=15, 
+            grid_length=15
+        )
+        tech_campus_group.add_area(research_lab, {"from": campus_entrance.id, "direction": "north", "distance": 15})
+        
+        # Create the server room
+        server_room = Area(
+            name="Server Room", 
+            description="A cold room filled with rows of humming servers. The digital heart of the campus.",
+            grid_width=10, 
+            grid_length=10
+        )
+        tech_campus_group.add_area(server_room, {"from": campus_entrance.id, "direction": "east", "distance": 15})
+        
+        # Create the cafeteria
+        cafeteria = Area(
+            name="Tech Cafeteria", 
+            description="A modern cafeteria serving food to the campus workers. Screens on the walls display news and stock prices.",
+            grid_width=12, 
+            grid_length=12
+        )
+        tech_campus_group.add_area(cafeteria, {"from": campus_entrance.id, "direction": "west", "distance": 15})
+        
+        # Connect areas within the campus
+        tech_campus_group.connect_areas_in_group(campus_entrance.id, "north", research_lab.id)
+        tech_campus_group.connect_areas_in_group(campus_entrance.id, "east", server_room.id)
+        tech_campus_group.connect_areas_in_group(campus_entrance.id, "west", cafeteria.id)
+        
+        # Add items to the areas
+        # Research lab items
+        prototype = Item(name="Prototype Device", description="A mysterious prototype device with unknown capabilities.")
+        research_lab.add_item_to_shop(prototype, price=2000.00, quantity=1)
+        
+        # Server room items - add a computer for stock trading
+        server_terminal = Computer(name="Advanced Server Terminal", description="A powerful terminal connected to the main servers.")
+        server_room.add_object_to_grid(server_terminal, 5, 5)
+        self.computers.append(server_terminal)
+        
+        # Cafeteria items
+        energy_drink = Item(name="Tech Energy Drink", description="A highly caffeinated beverage popular among tech workers.")
+        cafeteria.add_item_to_shop(energy_drink, price=5.00, quantity=float('inf'))
+        
+        # Add NPCs
+        # Campus receptionist
+        receptionist = NPC(
+            name="ReceptoBot", 
+            description="A helpful robot that greets visitors to the tech campus.", 
+            start_coords=campus_entrance.get_global_coordinates(6, 5),
+            area=campus_entrance, 
+            money=150
+        )
+        campus_entrance.add_object_to_grid(receptionist, 6, 5)
+        self.npc_manager.add_npc(receptionist)
+        
+        # Research scientist
+        scientist = NPC(
+            name="Dr. Circuit", 
+            description="A brilliant robot scientist working on advanced AI algorithms.", 
+            start_coords=research_lab.get_global_coordinates(7, 7),
+            area=research_lab, 
+            money=300
+        )
+        research_lab.add_object_to_grid(scientist, 7, 7)
+        self.npc_manager.add_npc(scientist)
+        
+        # Server technician
+        technician = NPC(
+            name="TechBot", 
+            description="A specialized robot that maintains the servers.", 
+            start_coords=server_room.get_global_coordinates(3, 3),
+            area=server_room, 
+            money=200
+        )
+        server_room.add_object_to_grid(technician, 3, 3)
+        self.npc_manager.add_npc(technician)
+        
+        # Register all campus areas with the main area manager
+        self.area_manager.register_areas_from_group("Vita Tech Campus")
+        
+        # Connect the campus entrance to the reference area
+        self.area_manager.connect_areas(reference_area.id, "north", campus_entrance.id)
+        
+        print_colored("Tech Campus initialized and connected to the park.", GameColors.SUCCESS_MESSAGE)
+        
+        return campus_entrance
+    
+    def _initialize_template_complex(self, reference_area, direction="north"):
+        """
+        Template method for creating a new area complex.
+        Copy and modify this method to create new area complexes.
+        
+        Args:
+            reference_area: The area to position the complex relative to
+            direction: Direction from the reference area ('north', 'south', 'east', 'west')
+        """
+        from colors import print_colored, GameColors
+        
+        # Create the complex
+        complex_group = self.create_area_complex(
+            "Template Complex", 
+            None,  # No explicit coordinates, calculate from reference
+            reference_area, 
+            direction, 
+            40  # Distance from reference area
+        )
+        
+        # Create the main area (entrance)
+        main_area = Area(
+            name="Template Main Area", 
+            description="The main area of the template complex.",
+            grid_width=10, 
+            grid_length=10
+        )
+        complex_group.add_area(main_area, "center")
+        
+        # Create additional areas
+        sub_area1 = Area(
+            name="Template Sub Area 1", 
+            description="A sub-area of the template complex.",
+            grid_width=8, 
+            grid_length=8
+        )
+        complex_group.add_area(sub_area1, {"from": main_area.id, "direction": "north", "distance": 15})
+        
+        sub_area2 = Area(
+            name="Template Sub Area 2", 
+            description="Another sub-area of the template complex.",
+            grid_width=8, 
+            grid_length=8
+        )
+        complex_group.add_area(sub_area2, {"from": main_area.id, "direction": "east", "distance": 15})
+        
+        # Connect areas within the complex
+        complex_group.connect_areas_in_group(main_area.id, "north", sub_area1.id)
+        complex_group.connect_areas_in_group(main_area.id, "east", sub_area2.id)
+        
+        # Add items and NPCs
+        # [Add items and NPCs here]
+        
+        # Register all areas with the main area manager
+        self.area_manager.register_areas_from_group("Template Complex")
+        
+        # Connect the complex to the reference area
+        self.area_manager.connect_areas(reference_area.id, direction, main_area.id)
+        
+        print_colored("Template complex initialized and connected.", GameColors.SUCCESS_MESSAGE)
+        
+        # Return the main area for further connections
+        return main_area
+    
     def initialize_game(self):
         """Initialize the game with hardcoded areas, items, NPCs for testing."""
         # Import colors module
@@ -90,6 +498,15 @@ class GameManager:
 
         # Park's south exit leads to Garden's north entrance
         self.area_manager.connect_areas(park.id, "south", garden.id)
+        
+        # Create the Mall Complex to the west of the park
+        self._initialize_mall_complex(park)
+        
+        # Create the Tech Campus to the north of the park
+        self._initialize_tech_campus(park)
+        
+        # Uncomment to add more complexes using the template
+        # self._initialize_template_complex(park, "north")
 
         # Create Items
         # ... (existing item creation) ...
@@ -112,12 +529,13 @@ class GameManager:
         yellow_star = Item(name="Yellow Star", description="A bright yellow star.", value=0, coordinates=park.get_global_coordinates(5,5))
         park.add_object_to_grid(yellow_star, 2, 2)
 
-        ysx = 5
-        ysy = 5
+        ysx = 3
+        ysy = 3
         for i in range(5):
             ysx+=1
             ysy+=1
             park.add_object_to_grid(yellow_star, ysx, ysy)
+            print(f"yellow star added to {ysx}, {ysy}")
 
         self.item_manager.items_master_list[yellow_star.id] = yellow_star
 
@@ -352,6 +770,68 @@ class GameManager:
                 print("Usage: npcinfo <npc_name>")
         elif action == "npc" and args and args[0] == "missions" or action == "npcmissions":
             self.show_npc_missions()
+        elif action == "save":
+            # Handle save command
+            save_name = " ".join(args) if args else None
+            save_path = self.save_system.save_game(save_name)
+            if save_path:
+                print(f"Game saved successfully to: {os.path.basename(save_path)}")
+            else:
+                print("Failed to save game.")
+        
+        elif action == "load":
+            # Handle load command
+            if not args:
+                # List available saves if no save name provided
+                saves = self.save_system.list_saves()
+                if saves:
+                    print("Available saves:")
+                    for i, save in enumerate(saves, 1):
+                        print(f"  {i}. {save}")
+                    print("Use 'load <save_name>' or 'load <number>' to load a specific save.")
+                else:
+                    print("No save files found.")
+            else:
+                save_name = " ".join(args)
+                # Check if user entered a number instead of a name
+                if save_name.isdigit():
+                    try:
+                        saves = self.save_system.list_saves()
+                        if not saves:
+                            print("No save files found.")
+                            return
+                            
+                        index = int(save_name) - 1
+                        if 0 <= index < len(saves):
+                            save_name = saves[index]
+                            print(f"Loading save #{index + 1}: {save_name}")
+                        else:
+                            print(f"Invalid save number. Use a number between 1 and {len(saves)}.")
+                            return
+                    except Exception as e:
+                        print(f"Error processing save number: {str(e)}")
+                        return
+                
+                try:
+                    success = self.save_system.load_game(save_name)
+                    if success:
+                        print(f"Game loaded successfully from: {save_name}")
+                        self.player.look_around()  # Show the player where they are
+                    else:
+                        print(f"Failed to load game from: {save_name}")
+                except Exception as e:
+                    print(f"Error loading game: {str(e)}")
+        
+        elif action == "saves":
+            # List all available saves
+            saves = self.save_system.list_saves()
+            if saves:
+                print("Available saves:")
+                for i, save in enumerate(saves, 1):
+                    print(f"  {i}. {save}")
+            else:
+                print("No save files found.")
+                
         elif action == "help":
             self.show_help()
         else:
@@ -385,6 +865,9 @@ class GameManager:
             ("Teleport", "teleport, tp <area> [x] [y]", "Teleport to an area"),
             ("NPC Info", "npcinfo <npc>", "Show detailed info about an NPC"),
             ("NPC Missions", "npc missions, npcmissions", "Show all NPCs with active missions or influences"),
+            ("Save Game", "save [name]", "Save your game progress (optional name)"),
+            ("Load Game", "load [name|number]", "Load a saved game (name or number from list)"),
+            ("List Saves", "saves", "List all available save files"),
             ("Help", "help", "Show this help message"),
             ("Quit", "quit, exit", "Exit the game")
         ]

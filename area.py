@@ -151,10 +151,147 @@ class Area:
         item_details['stock'] -= 1
         return item_details['prototype'].clone(), item_details['price']
 
+class AreaGroup:
+    """Manages a group of related areas, like a mall complex."""
+    def __init__(self, name, origin_coords=None):
+        self.name = name
+        self.origin_coords = origin_coords if origin_coords else Coordinates(0, 0, 0)
+        self.areas = {}  # area_id -> Area_object
+        self.layout = {}  # Stores relative positions of areas within the group
+        
+    def add_area(self, area, relative_position=None):
+        """
+        Add an area to the group with an optional relative position.
+        relative_position can be:
+        - None: No specific position
+        - "center": Center of the group
+        - (x_offset, y_offset): Relative to group origin
+        - {"from": "area_id", "direction": "north/south/east/west", "distance": 10}
+        """
+        if area.id in self.areas:
+            print(f"Warning: Area with ID '{area.id}' already exists in group '{self.name}'. Overwriting.")
+        
+        self.areas[area.id] = area
+        
+        # Set area coordinates based on relative position
+        if relative_position is None:
+            # Default placement at group origin
+            area.area_origin_coords = Coordinates(
+                self.origin_coords.x,
+                self.origin_coords.y,
+                self.origin_coords.z
+            )
+        elif relative_position == "center":
+            # Place at group origin
+            area.area_origin_coords = Coordinates(
+                self.origin_coords.x,
+                self.origin_coords.y,
+                self.origin_coords.z
+            )
+        elif isinstance(relative_position, tuple) and len(relative_position) == 2:
+            # Place at offset from group origin
+            x_offset, y_offset = relative_position
+            area.area_origin_coords = Coordinates(
+                self.origin_coords.x + x_offset,
+                self.origin_coords.y + y_offset,
+                self.origin_coords.z
+            )
+        elif isinstance(relative_position, dict) and "from" in relative_position and "direction" in relative_position:
+            # Place relative to another area in the group
+            from_area_id = relative_position["from"]
+            direction = relative_position["direction"]
+            distance = relative_position.get("distance", 20)  # Default distance
+            
+            if from_area_id in self.areas:
+                from_area = self.areas[from_area_id]
+                
+                # Calculate new coordinates based on direction
+                if direction == "north":
+                    area.area_origin_coords = Coordinates(
+                        from_area.area_origin_coords.x,
+                        from_area.area_origin_coords.y - distance,
+                        from_area.area_origin_coords.z
+                    )
+                elif direction == "south":
+                    area.area_origin_coords = Coordinates(
+                        from_area.area_origin_coords.x,
+                        from_area.area_origin_coords.y + distance,
+                        from_area.area_origin_coords.z
+                    )
+                elif direction == "east":
+                    area.area_origin_coords = Coordinates(
+                        from_area.area_origin_coords.x + distance,
+                        from_area.area_origin_coords.y,
+                        from_area.area_origin_coords.z
+                    )
+                elif direction == "west":
+                    area.area_origin_coords = Coordinates(
+                        from_area.area_origin_coords.x - distance,
+                        from_area.area_origin_coords.y,
+                        from_area.area_origin_coords.z
+                    )
+            else:
+                print(f"Warning: Reference area '{from_area_id}' not found in group. Using group origin.")
+                area.area_origin_coords = Coordinates(
+                    self.origin_coords.x,
+                    self.origin_coords.y,
+                    self.origin_coords.z
+                )
+        
+        # Store the layout information
+        self.layout[area.id] = {
+            "area": area,
+            "relative_position": relative_position
+        }
+        
+    def connect_areas_in_group(self, area1_id, direction, area2_id):
+        """Connect two areas within the group."""
+        if area1_id in self.areas and area2_id in self.areas:
+            self.areas[area1_id].add_connection(direction, self.areas[area2_id])
+            return True
+        return False
+    
+    def connect_all_adjacent_areas(self):
+        """
+        Automatically connect areas that are adjacent to each other.
+        This is useful for creating a connected complex like a mall.
+        """
+        # This is a simplified version - in a real implementation, you'd check
+        # actual adjacency based on coordinates and dimensions
+        for area1_id, area1_data in self.layout.items():
+            area1 = area1_data["area"]
+            for area2_id, area2_data in self.layout.items():
+                if area1_id == area2_id:
+                    continue
+                    
+                area2 = area2_data["area"]
+                
+                # Check if areas are adjacent (simplified)
+                # East-West adjacency
+                if (abs(area1.area_origin_coords.x + area1.grid_width - area2.area_origin_coords.x) < 5 and
+                    abs(area1.area_origin_coords.y - area2.area_origin_coords.y) < 5):
+                    area1.add_connection("east", area2)
+                
+                # West-East adjacency
+                if (abs(area1.area_origin_coords.x - (area2.area_origin_coords.x + area2.grid_width)) < 5 and
+                    abs(area1.area_origin_coords.y - area2.area_origin_coords.y) < 5):
+                    area1.add_connection("west", area2)
+                
+                # North-South adjacency
+                if (abs(area1.area_origin_coords.y - (area2.area_origin_coords.y + area2.grid_length)) < 5 and
+                    abs(area1.area_origin_coords.x - area2.area_origin_coords.x) < 5):
+                    area1.add_connection("north", area2)
+                
+                # South-North adjacency
+                if (abs(area1.area_origin_coords.y + area1.grid_length - area2.area_origin_coords.y) < 5 and
+                    abs(area1.area_origin_coords.x - area2.area_origin_coords.x) < 5):
+                    area1.add_connection("south", area2)
+
 class AreaManager:
     """Manages all areas in the game world."""
     def __init__(self):
         self.areas = {}  # area_id -> Area_object
+        self.area_groups = {}  # group_name -> AreaGroup_object
 
     def add_area(self, area):
         """Add an area to the manager."""
@@ -170,6 +307,10 @@ class AreaManager:
             if area.name.lower() == area_id_or_name.lower():
                 return area
         return None
+    
+    def get_area_by_id(self, area_id):
+        """Get an area by its exact ID."""
+        return self.areas.get(area_id)
 
     def connect_areas(self, area1_id, direction, area2_id):
         """Connect two areas in the specified direction."""
@@ -180,3 +321,25 @@ class AreaManager:
             return True
         print(f"Error connecting areas: One or both not found ('{area1_id}', '{area2_id}')")
         return False
+        
+    def create_area_group(self, name, origin_coords=None):
+        """Create a new area group."""
+        group = AreaGroup(name, origin_coords)
+        self.area_groups[name.lower()] = group
+        return group
+        
+    def get_area_group(self, name):
+        """Get an area group by name."""
+        return self.area_groups.get(name.lower())
+        
+    def register_areas_from_group(self, group_name):
+        """Register all areas from a group with the main area manager."""
+        group = self.get_area_group(group_name)
+        if not group:
+            print(f"Area group '{group_name}' not found.")
+            return False
+            
+        for area_id, area in group.areas.items():
+            self.add_area(area)
+        
+        return True

@@ -218,7 +218,20 @@ class InfluenceSource(GameObject):
         
         self.delivery_item_name = delivery_item_name
         self.delivery_target_area_name = delivery_target_area_name
-        self.delivery_target_coords = delivery_target_coords
+        
+        # Ensure delivery_target_coords is a tuple of integers
+        if delivery_target_coords is not None:
+            if isinstance(delivery_target_coords, tuple) and len(delivery_target_coords) >= 2:
+                # Convert to integers if needed
+                self.delivery_target_coords = (int(delivery_target_coords[0]), int(delivery_target_coords[1]))
+            elif isinstance(delivery_target_coords, list) and len(delivery_target_coords) >= 2:
+                # Convert list to tuple of integers
+                self.delivery_target_coords = (int(delivery_target_coords[0]), int(delivery_target_coords[1]))
+            else:
+                print(f"WARNING: Invalid delivery_target_coords format: {delivery_target_coords}")
+                self.delivery_target_coords = None
+        else:
+            self.delivery_target_coords = None
 
         self.influence_radius = influence_radius
         self.influence_strength = influence_strength
