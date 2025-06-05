@@ -343,3 +343,38 @@ class AreaManager:
             self.add_area(area)
         
         return True
+    def list_areas(self, include_connections=True, include_coords=True):
+        """List all areas including their IDs and optionally connections."""
+        print("\n=== GAME AREAS ===")
+        print(f"Total areas: {len(self.areas)}")
+        
+        # Group areas by complex/group
+        area_groups = {}
+        for area in self.areas.values():
+            # Extract group name from area name if possible
+            group_name = "Ungrouped"
+            if " Mall " in area.name:
+                group_name = "Mall Complex"
+            elif "Tech Campus" in area.name:
+                group_name = "Tech Campus"
+            elif area.name in ["Central Park", "General Store", "Gray Bird Garden"]:
+                group_name = "Main Areas"
+                
+            if group_name not in area_groups:
+                area_groups[group_name] = []
+            area_groups[group_name].append(area)
+        
+        # Print areas by group
+        for group_name, areas in sorted(area_groups.items()):
+            print(f"\n{group_name} ({len(areas)} areas):")
+            for area in sorted(areas, key=lambda a: a.name):
+                print(f"  ID: {area.id}, Name: {area.name}")
+                if include_coords:
+                    print(f"    Coordinates: ({area.area_origin_coords.x}, {area.area_origin_coords.y}, {area.area_origin_coords.z})")
+                if include_connections:
+                    connections = [f"{dir}: {conn.name}" for dir, conn in area.connections.items()]
+                    if connections:
+                        print(f"    Connections: {', '.join(connections)}")
+                    else:
+                        print("    Connections: None")
+        print("\n=== END OF AREAS ===\n")

@@ -18,6 +18,9 @@ class SaveSystem:
         # Create saves directory if it doesn't exist
         os.makedirs(self.save_directory, exist_ok=True)
         
+        # Define the current game version
+        self.current_version = '1.1'  # Updated from 1.0 to reflect mall and tech campus additions
+        
     def _serialize_dict(self, dictionary):
         """
         Helper method to serialize dictionaries with non-string keys.
@@ -101,7 +104,7 @@ class SaveSystem:
             
             # Create the save data dictionary
             save_data = {
-                'version': '1.0',
+                'version': self.current_version,
                 'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 'game_turn': self.game_manager.game_turn,
                 'player': self._serialize_player(),
@@ -154,12 +157,19 @@ class SaveSystem:
             # Reset current game state
             self._reset_game_state()
             
+            # Get save version
+            save_version = save_data.get('version', '1.0')
+            
             # Load game turn
             self.game_manager.game_turn = save_data.get('game_turn', 0)
             
             # Load areas first (needed for other objects)
             self._deserialize_areas(save_data.get('areas', []))
             
+            # Check if we need to upgrade from an older version
+            needs_upgrade = save_version < self.current_version
+            
+            # First, load all the existing areas and objects
             # Load items (before NPCs and player who might have them in inventory)
             self._deserialize_items(save_data.get('items', []))
             
@@ -171,6 +181,35 @@ class SaveSystem:
             
             # Load computers
             self._deserialize_computers(save_data.get('computers', []))
+            
+            # Now perform the upgrade if needed - this will add new areas
+            if needs_upgrade:
+                print(f"Upgrading save from version {save_version} to {self.current_version}...")
+                self._upgrade_save(save_version)
+                
+                # Update the save version to reflect the upgrade
+                save_version = self.current_version
+                
+                # Update the save file with the new version
+                try:
+                    # Create a backup of the original save
+                    backup_path = save_path + ".backup"
+                    import shutil
+                    shutil.copy2(save_path, backup_path)
+                    print(f"Created backup of original save at {os.path.basename(backup_path)}")
+                    
+                    # Update the version in the save file
+                    with open(save_path, 'r') as file:
+                        save_data_updated = json.load(file)
+                    
+                    save_data_updated['version'] = self.current_version
+                    
+                    with open(save_path, 'w') as file:
+                        json.dump(save_data_updated, file, indent=2)
+                    
+                    print(f"Updated save file version to {self.current_version}")
+                except Exception as e:
+                    print(f"Warning: Could not update save file version: {str(e)}")
             
             return True
         
@@ -191,6 +230,49 @@ class SaveSystem:
         except Exception as e:
             print(f"Error listing saves: {str(e)}")
             return []
+            
+    def get_save_info(self, save_name):
+        """
+        Get information about a save file including its version.
+        
+        Args:
+            save_name (str): Name of the save file
+            
+        Returns:
+            dict: Dictionary with save information or None if file not found/invalid
+        """
+        try:
+            # Ensure save name has .json extension
+            if not save_name.endswith('.json'):
+                save_name += '.json'
+            
+            save_path = os.path.join(self.save_directory, save_name)
+            
+            # Check if save file exists
+            if not os.path.exists(save_path):
+                return None
+            
+            # Load save data from file
+            with open(save_path, 'r') as save_file:
+                save_data = json.load(save_file)
+            
+            # Extract basic info
+            info = {
+                'version': save_data.get('version', '1.0'),
+                'timestamp': save_data.get('timestamp', 'Unknown'),
+                'game_turn': save_data.get('game_turn', 0),
+                'player_money': save_data.get('player', {}).get('money', 0),
+                'area_count': len(save_data.get('areas', [])),
+                'npc_count': len(save_data.get('npcs', [])),
+                'compatible': True,  # Assume compatible by default
+                'upgrade_needed': save_data.get('version', '1.0') < self.current_version
+            }
+            
+            return info
+            
+        except Exception as e:
+            print(f"Error getting save info: {str(e)}")
+            return None
     
     def _reset_game_state(self):
         """Reset the current game state before loading a save."""
@@ -205,6 +287,73 @@ class SaveSystem:
         
         # Clear computers
         self.game_manager.computers = []
+        
+    def _upgrade_save(self, from_version):
+        """
+        Upgrade a save from an older version to the current version.
+        This method adds any new areas or features that were added since the save was created.
+        
+        Args:
+            from_version (str): The version of the save being loaded
+        """
+        try:
+            # Find the park area (or another reference area) to use as a reference point
+            park_area = None
+            for area_id, area in self.game_manager.area_manager.areas.items():
+                if area.name == "Central Park":
+                    park_area = area
+                    break
+            
+            # If we can't find the park, use the first area as a reference
+            if not park_area and self.game_manager.area_manager.areas:
+                park_area = next(iter(self.game_manager.area_manager.areas.values()))
+            
+            # If we still don't have a reference area, we can't proceed with the upgrade
+            if not park_area:
+                print("Warning: Could not find a reference area for upgrade. New areas will not be added.")
+                return
+            
+            # Upgrade from 1.0 to 1.1 (adding mall and tech campus)
+            if from_version == '1.0':
+                print("Adding new areas: Mall Complex and Tech Campus...")
+                
+                # Check if mall already exists
+                mall_exists = any(area.name == "Vita Mall Entrance" for area in self.game_manager.area_manager.areas.values())
+                if not mall_exists:
+                    try:
+                        # Initialize the mall complex
+                        self.game_manager._initialize_mall_complex(park_area)
+                        print("Mall Complex added successfully.")
+                    except Exception as e:
+                        print(f"Error adding Mall Complex: {str(e)}")
+                
+                # Check if tech campus already exists
+                tech_campus_exists = any(area.name == "Tech Campus Entrance" for area in self.game_manager.area_manager.areas.values())
+                if not tech_campus_exists:
+                    try:
+                        # Initialize the tech campus
+                        self.game_manager._initialize_tech_campus(park_area)
+                        print("Tech Campus added successfully.")
+                    except Exception as e:
+                        print(f"Error adding Tech Campus: {str(e)}")
+                        
+                # Verify the areas were added correctly
+                mall_added = any(area.name == "Vita Mall Entrance" for area in self.game_manager.area_manager.areas.values())
+                tech_added = any(area.name == "Tech Campus Entrance" for area in self.game_manager.area_manager.areas.values())
+                
+                if mall_added and tech_added:
+                    print("Upgrade completed successfully. New areas are now available.")
+                else:
+                    missing = []
+                    if not mall_added:
+                        missing.append("Mall Complex")
+                    if not tech_added:
+                        missing.append("Tech Campus")
+                    print(f"Warning: Some areas could not be added: {', '.join(missing)}")
+        
+        except Exception as e:
+            print(f"Error during save upgrade: {str(e)}")
+            print("Some new areas may not have been added correctly.")
     
     def _serialize_player(self):
         """Serialize player data to a dictionary."""

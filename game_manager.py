@@ -13,6 +13,7 @@ from .npc import NPC, NPCManager
 from .coordinates import Coordinates
 from .game_objects import Computer, InfluenceSource # Import Computer and InfluenceSource
 from .save_system import SaveSystem
+import json
 
 class OutputMonitor:
     """
@@ -499,11 +500,17 @@ class GameManager:
         # Park's south exit leads to Garden's north entrance
         self.area_manager.connect_areas(park.id, "south", garden.id)
         
-        # Create the Mall Complex to the west of the park
-        self._initialize_mall_complex(park)
+        # Check if mall already exists before creating it
+        mall_exists = any(area.name == "Vita Mall Entrance" for area in self.area_manager.areas.values())
+        if not mall_exists:
+            # Create the Mall Complex to the west of the park
+            self._initialize_mall_complex(park)
         
-        # Create the Tech Campus to the north of the park
-        self._initialize_tech_campus(park)
+        # Check if tech campus already exists before creating it
+        tech_campus_exists = any(area.name == "Tech Campus Entrance" for area in self.area_manager.areas.values())
+        if not tech_campus_exists:
+            # Create the Tech Campus to the north of the park
+            self._initialize_tech_campus(park)
         
         # Uncomment to add more complexes using the template
         # self._initialize_template_complex(park, "north")
@@ -779,6 +786,130 @@ class GameManager:
             else:
                 print("Failed to save game.")
         
+        elif action == "saveinfo":
+            # Handle saveinfo command
+            if not args:
+                # List available saves with info if no save name provided
+                saves = self.save_system.list_saves()
+                if saves:
+                    print("Available saves:")
+                    for i, save in enumerate(saves, 1):
+                        save_info = self.save_system.get_save_info(save)
+                        if save_info:
+                            version_status = "Up to date" if save_info['version'] == self.save_system.current_version else f"v{save_info['version']} (will upgrade to v{self.save_system.current_version})"
+                            print(f"  {i}. {save} - {version_status}, Turn: {save_info['game_turn']}, Money: ${save_info['player_money']}")
+                        else:
+                            print(f"  {i}. {save} - Could not read save info")
+                else:
+                    print("No save files found.")
+            else:
+                save_name = " ".join(args)
+                # Check if user entered a number instead of a name
+                if save_name.isdigit():
+                    try:
+                        saves = self.save_system.list_saves()
+                        if not saves:
+                            print("No save files found.")
+                            return
+                            
+                        index = int(save_name) - 1
+                        if 0 <= index < len(saves):
+                            save_name = saves[index]
+                        else:
+                            print(f"Invalid save number. Use a number between 1 and {len(saves)}.")
+                            return
+                    except Exception as e:
+                        print(f"Error: {str(e)}")
+                        return
+                
+                # Get and display detailed save info
+                save_info = self.save_system.get_save_info(save_name)
+                if save_info:
+                    print(f"Save: {save_name}")
+                    print(f"Version: {save_info['version']} (Current game version: {self.save_system.current_version})")
+                    print(f"Timestamp: {save_info['timestamp']}")
+                    print(f"Game Turn: {save_info['game_turn']}")
+                    print(f"Player Money: ${save_info['player_money']}")
+                    print(f"Areas: {save_info['area_count']}")
+                    print(f"NPCs: {save_info['npc_count']}")
+                    if save_info['upgrade_needed']:
+                        print("This save will be upgraded to the current version when loaded.")
+                        print("New areas (Mall Complex and Tech Campus) will be added.")
+                else:
+                    print(f"Could not read save info for {save_name}")
+        elif action == "ver":
+            # Display current game version
+            print(f"Current game version: {self.save_system.current_version}")
+        elif action == "areas":
+            # Display list of areas
+            self.area_manager.list_areas()
+        elif action == "upgradesave" and args:
+            # Force upgrade a save file without loading it
+            save_name = " ".join(args)
+            
+            # Check if user entered a number instead of a name
+            if save_name.isdigit():
+                try:
+                    saves = self.save_system.list_saves()
+                    if not saves:
+                        print("No save files found.")
+                        return
+                        
+                    index = int(save_name) - 1
+                    if 0 <= index < len(saves):
+                        save_name = saves[index]
+                    else:
+                        print(f"Invalid save number. Use a number between 1 and {len(saves)}.")
+                        return
+                except Exception as e:
+                    print(f"Error: {str(e)}")
+                    return
+            
+            # Ensure save name has .json extension
+            if not save_name.endswith('.json'):
+                save_name += '.json'
+                
+            save_path = os.path.join(self.save_system.save_directory, save_name)
+            
+            # Check if save file exists
+            if not os.path.exists(save_path):
+                print(f"Save file '{save_name}' not found.")
+                return
+                
+            try:
+                # Load save data
+                with open(save_path, 'r') as save_file:
+                    save_data = json.load(save_file)
+                
+                # Get save version
+                save_version = save_data.get('version', '1.0')
+                
+                if save_version == self.save_system.current_version:
+                    print(f"Save is already at current version {save_version}. No upgrade needed.")
+                    return
+                    
+                print(f"Forcing upgrade of save from version {save_version} to {self.save_system.current_version}...")
+                
+                # Create a backup
+                backup_path = save_path + ".backup"
+                import shutil
+                shutil.copy2(save_path, backup_path)
+                print(f"Created backup at {os.path.basename(backup_path)}")
+                
+                # Update version
+                save_data['version'] = self.save_system.current_version
+                
+                # Save updated file
+                with open(save_path, 'w') as save_file:
+                    json.dump(save_data, save_file, indent=2)
+                    
+                print(f"Save file version updated to {self.save_system.current_version}")
+                print("Note: This only updates the version number. To add new areas, load the save.")
+                
+            except Exception as e:
+                print(f"Error upgrading save: {str(e)}")
+
+                    
         elif action == "load":
             # Handle load command
             if not args:
@@ -787,8 +918,11 @@ class GameManager:
                 if saves:
                     print("Available saves:")
                     for i, save in enumerate(saves, 1):
-                        print(f"  {i}. {save}")
+                        save_info = self.save_system.get_save_info(save)
+                        version_info = f" (v{save_info['version']})" if save_info else ""
+                        print(f"  {i}. {save}{version_info}")
                     print("Use 'load <save_name>' or 'load <number>' to load a specific save.")
+                    print("Use 'saveinfo' to see detailed information about saves.")
                 else:
                     print("No save files found.")
             else:
@@ -868,6 +1002,10 @@ class GameManager:
             ("Save Game", "save [name]", "Save your game progress (optional name)"),
             ("Load Game", "load [name|number]", "Load a saved game (name or number from list)"),
             ("List Saves", "saves", "List all available save files"),
+            ("Save Info", "saveinfo [name|number]", "Show detailed information about saves"),
+            ("Game Version", "ver", "Show current game version"),
+            ("List Areas", "areas", "List all areas in the game"),
+            ("Upgrade Save", "upgradesave [name|number]", "Force upgrade a save file to current version"),
             ("Help", "help", "Show this help message"),
             ("Quit", "quit, exit", "Exit the game")
         ]
